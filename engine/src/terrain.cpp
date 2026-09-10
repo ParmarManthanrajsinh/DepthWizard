@@ -3,23 +3,26 @@
 #include <cstdint>
 
 #if defined(PLATFORM_WEB)
-    #define GLSL_VERSION            100
+    #define GLSL_HEADER "precision mediump float;\n"
+    #define GLSL_IN     "attribute"
+    #define GLSL_OUT    "varying"
 #else
-    #define GLSL_VERSION            330
+    #define GLSL_HEADER "#version 330\n"
+    #define GLSL_IN     "in"
+    #define GLSL_OUT    "out"
 #endif
 
 static const char* kTerrainVS =
-#if defined(PLATFORM_WEB)
-    "precision mediump float;\n"
-    "attribute vec3 vertexPosition;\n"
-    "attribute vec2 vertexTexCoord;\n"
-    "attribute vec3 vertexNormal;\n"
-    "attribute vec4 vertexColor;\n"
+    GLSL_HEADER
+    GLSL_IN " vec3 vertexPosition;\n"
+    GLSL_IN " vec2 vertexTexCoord;\n"
+    GLSL_IN " vec3 vertexNormal;\n"
+    GLSL_IN " vec4 vertexColor;\n"
     "uniform mat4 mvp;\n"
     "uniform mat4 matModel;\n"
-    "varying vec2 fragTexCoord;\n"
-    "varying vec4 fragColor;\n"
-    "varying float fragLight;\n"
+    GLSL_OUT " vec2 fragTexCoord;\n"
+    GLSL_OUT " vec4 fragColor;\n"
+    GLSL_OUT " float fragLight;\n"
     "void main() {\n"
     "    fragTexCoord = vertexTexCoord;\n"
     "    vec3 lightDir = normalize(vec3(0.55, 0.75, 0.35));\n"
@@ -34,35 +37,9 @@ static const char* kTerrainVS =
     "    fragColor = vec4(terrainCol, 1.0);\n"
     "    gl_Position = mvp * vec4(vertexPosition, 1.0);\n"
     "}\n";
-#else
-    "#version 330\n"
-    "in vec3 vertexPosition;\n"
-    "in vec2 vertexTexCoord;\n"
-    "in vec3 vertexNormal;\n"
-    "in vec4 vertexColor;\n"
-    "uniform mat4 mvp;\n"
-    "uniform mat4 matModel;\n"
-    "out vec2 fragTexCoord;\n"
-    "out vec4 fragColor;\n"
-    "out float fragLight;\n"
-    "void main() {\n"
-    "    fragTexCoord = vertexTexCoord;\n"
-    "    vec3 lightDir = normalize(vec3(0.55, 0.75, 0.35));\n"
-    "    vec3 norm = normalize(vec3(matModel * vec4(vertexNormal, 0.0)));\n"
-    "    float diff = max(dot(norm, lightDir), 0.0);\n"
-    "    fragLight = 0.30 + 0.70 * diff;\n"
-    "    float hNorm = clamp(vertexPosition.y / 25.0, 0.0, 1.0);\n"
-    "    vec3 lowColor = vec3(0.38, 0.48, 0.58);\n"
-    "    vec3 midColor = vec3(0.65, 0.75, 0.82);\n"
-    "    vec3 highColor = vec3(0.94, 0.96, 0.98);\n"
-    "    vec3 terrainCol = (hNorm < 0.5) ? mix(lowColor, midColor, hNorm * 2.0) : mix(midColor, highColor, (hNorm - 0.5) * 2.0);\n"
-    "    fragColor = vec4(terrainCol, 1.0);\n"
-    "    gl_Position = mvp * vec4(vertexPosition, 1.0);\n"
-    "}\n";
-#endif
 
-static const char* kTerrainFS =
 #if defined(PLATFORM_WEB)
+static const char* kTerrainFS =
     "precision mediump float;\n"
     "varying vec2 fragTexCoord;\n"
     "varying vec4 fragColor;\n"
@@ -73,6 +50,7 @@ static const char* kTerrainFS =
     "    gl_FragColor = vec4(finalRgb, 1.0);\n"
     "}\n";
 #else
+static const char* kTerrainFS =
     "#version 330\n"
     "in vec2 fragTexCoord;\n"
     "in vec4 fragColor;\n"
@@ -106,7 +84,6 @@ bool FTerrainRenderer::Load(std::string_view InFilePath)
         return false;
     }
 
-    // Raylib C API requires null-terminated C-string
     const std::string PathString(InFilePath);
     if (FileExists(PathString.c_str()))
     {
@@ -155,7 +132,6 @@ void FTerrainRenderer::Draw()
     const Vector3 Position = { 0.0f, 0.0f, 0.0f };
     if (bWireframeMode)
     {
-        // In wireframe mode, temporarily swap to default shader so pure Signal Red lines render crisply
         const Shader SavedShader = TerrainModel.materials[0].shader;
         const Shader DefaultShader = LoadMaterialDefault().shader;
         for (int32_t Index = 0; Index < TerrainModel.materialCount; ++Index)
@@ -170,14 +146,8 @@ void FTerrainRenderer::Draw()
     }
     else
     {
-        // Directional hillshaded surface
         DrawModel(TerrainModel, Position, 1.0f, WHITE);
     }
-}
-
-float FTerrainRenderer::GetElevationAt(const Vector3& InPosition) const
-{
-    return InPosition.y * 10.0f;
 }
 
 void FTerrainRenderer::ToggleWireframe()

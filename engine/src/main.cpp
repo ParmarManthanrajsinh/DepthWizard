@@ -24,98 +24,49 @@ extern "C"
 #endif
     int LoadTerrainFromMemory(const char* InFilePath)
     {
-        if (!InFilePath)
-        {
-            return 0;
-        }
-
+        if (!InFilePath) return 0;
         const bool bSuccess = GTerrain.Load(std::string_view(InFilePath));
-        if (bSuccess)
-        {
-            GCamera.Initialize(Vector3{ 0.0f, 45.0f, 85.0f }, Vector3{ 0.0f, 20.0f, 0.0f });
-        }
+        if (bSuccess) GCamera.Reset();
         return bSuccess ? 1 : 0;
     }
 
 #ifdef PLATFORM_WEB
     EMSCRIPTEN_KEEPALIVE
 #endif
-    void ToggleWireframe()
-    {
-        GTerrain.ToggleWireframe();
-    }
+    void ToggleWireframe() { GTerrain.ToggleWireframe(); }
 
 #ifdef PLATFORM_WEB
     EMSCRIPTEN_KEEPALIVE
 #endif
-    void ResetCamera()
-    {
-        GCamera.Reset();
-    }
+    void ResetCamera() { GCamera.Reset(); }
 
 #ifdef PLATFORM_WEB
     EMSCRIPTEN_KEEPALIVE
 #endif
-    float GetCameraAlt()
-    {
-        return GCamera.Camera.position.y * 10.0f;
-    }
-
-#ifdef PLATFORM_WEB
-    EMSCRIPTEN_KEEPALIVE
-#endif
-    float GetCameraPosX()
-    {
-        return GCamera.Camera.position.x;
-    }
-
-#ifdef PLATFORM_WEB
-    EMSCRIPTEN_KEEPALIVE
-#endif
-    float GetCameraPosZ()
-    {
-        return GCamera.Camera.position.z;
-    }
-
-#ifdef PLATFORM_WEB
-    EMSCRIPTEN_KEEPALIVE
-#endif
-    float GetCameraPitch()
-    {
-        return fabsf(GCamera.Pitch) * (180.0f / 3.14159265f);
-    }
-
-#ifdef PLATFORM_WEB
-    EMSCRIPTEN_KEEPALIVE
-#endif
-    int GetEngineFPS()
-    {
-        return GetFPS();
-    }
+    float GetCameraAlt()   { return GCamera.Camera.position.y * 10.0f; }
+    float GetCameraPosX()  { return GCamera.Camera.position.x; }
+    float GetCameraPosZ()  { return GCamera.Camera.position.z; }
+    float GetCameraPitch() { return fabsf(GCamera.Pitch) * (180.0f / 3.14159265f); }
+    int GetEngineFPS()     { return GetFPS(); }
 }
 
 void UpdateDrawFrame()
 {
     const float DeltaTime = GetFrameTime();
 
-    // Toggle wireframe mode via keyboard shortcut
     if (IsKeyPressed(KEY_X))
     {
         GTerrain.ToggleWireframe();
     }
 
-    // Advance camera state
     GCamera.Update(DeltaTime);
 
-    // Frame rendering pass
     BeginDrawing();
     ClearBackground(Color{ 10, 12, 16, 255 });
 
     BeginMode3D(GCamera.Camera);
-        // Spatial reference grid
         DrawGrid(60, 4.0f);
 
-        // Terrain surface or wireframe
         if (GTerrain.bIsLoaded)
         {
             GTerrain.Draw();
@@ -129,14 +80,12 @@ void UpdateDrawFrame()
     const int32_t CurrentFPS = GetFPS();
 
 #ifdef PLATFORM_WEB
-    // Push live telemetry directly to HTML HUD
     EM_ASM({
         if (window.updateWasmHUD) {
             window.updateWasmHUD($0, $1, $2, $3, $4);
         }
     }, AltitudeMeters, PosX, PosZ, PitchDegrees, CurrentFPS);
 #else
-    // Desktop Raylib Overlay
     DrawRectangle(20, 20, 280, 160, Fade(Color{ 10, 14, 24, 255 }, 0.85f));
     DrawRectangleLines(20, 20, 280, 160, Fade(Color{ 0, 240, 255, 255 }, 0.4f));
 
@@ -171,7 +120,7 @@ int main(int argc, char* argv[])
     InitWindow(GScreenWidth, GScreenHeight, "DepthWizard - 3D Terrain Flythrough (ISRO SIH26175)");
     SetTargetFPS(60);
 
-    GCamera.Initialize(Vector3{ 0.0f, 45.0f, 85.0f }, Vector3{ 0.0f, 20.0f, 0.0f });
+    GCamera.Reset();
     GTerrain.Load(std::string_view(GMeshPath));
 
 #ifdef PLATFORM_WEB

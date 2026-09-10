@@ -37,14 +37,6 @@ public:
     void Unload();
 
     /**
-     * Computes scaled elevation in meters at the given world position.
-     * 
-     * @param InPosition Camera or sample world position.
-     * @return Scaled elevation in meters.
-     */
-    float GetElevationAt(const Vector3& InPosition) const;
-
-    /**
      * Toggles wireframe rendering mode.
      */
     void ToggleWireframe();

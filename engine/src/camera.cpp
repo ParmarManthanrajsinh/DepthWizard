@@ -22,9 +22,8 @@ void FFreeFlyCamera::Initialize(const Vector3& InStartPos, const Vector3& InTarg
     Camera.position = InStartPos;
     Camera.target = InTargetPos;
 
-    // Compute pitch and yaw from start position towards target position
     const Vector3 Delta = Vector3Subtract(InTargetPos, InStartPos);
-    const float DistXZ = sqrtf(Delta.x * Delta.x + Delta.z * Delta.z);
+    const float DistXZ = hypotf(Delta.x, Delta.z);
 
     if (DistXZ > 0.001f)
     {
@@ -45,7 +44,6 @@ void FFreeFlyCamera::Reset()
 
 void FFreeFlyCamera::Update(float InDeltaTime)
 {
-    // Mouse look when right mouse or left mouse is held
     if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) || IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
     {
         const Vector2 MouseDelta = GetMouseDelta();
@@ -54,59 +52,23 @@ void FFreeFlyCamera::Update(float InDeltaTime)
         Pitch = std::clamp(Pitch, -1.5f, 1.5f);
     }
 
-    // Direction vectors from pitch and yaw
     const Vector3 Forward = {
         cosf(Pitch) * sinf(Yaw),
         sinf(Pitch),
         cosf(Pitch) * cosf(Yaw)
     };
 
-    // Right vector perpendicular to forward and world up in XZ plane
-    Vector3 Right = { -Forward.z, 0.0f, Forward.x };
-    const float RightLen = sqrtf(Right.x * Right.x + Right.z * Right.z);
-    if (RightLen > 0.001f)
-    {
-        Right.x /= RightLen;
-        Right.z /= RightLen;
-    }
-    else
-    {
-        Right = { 1.0f, 0.0f, 0.0f };
-    }
-    const Vector3 Up = { 0.0f, 1.0f, 0.0f };
+    const Vector3 Right = Vector3Normalize(Vector3{ -Forward.z, 0.0f, Forward.x });
+    const float CurrentSpeed = MoveSpeed * ((IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT)) ? 2.5f : 1.0f);
 
-    float CurrentSpeed = MoveSpeed;
-    if (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT))
-    {
-        CurrentSpeed *= 2.5f; // Turbo boost
-    }
+    const float MoveX = (float)((IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT)) - (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT)));
+    const float MoveZ = (float)((IsKeyDown(KEY_W) || IsKeyDown(KEY_UP)) - (IsKeyDown(KEY_S) || IsKeyDown(KEY_DOWN)));
+    const float MoveY = (float)(IsKeyDown(KEY_SPACE) - (IsKeyDown(KEY_C) || IsKeyDown(KEY_LEFT_CONTROL)));
 
-    Vector3 Movement = { 0 };
-
-    if (IsKeyDown(KEY_W) || IsKeyDown(KEY_UP))
-    {
-        Movement = Vector3Add(Movement, Forward);
-    }
-    if (IsKeyDown(KEY_S) || IsKeyDown(KEY_DOWN))
-    {
-        Movement = Vector3Subtract(Movement, Forward);
-    }
-    if (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT))
-    {
-        Movement = Vector3Add(Movement, Right);
-    }
-    if (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT))
-    {
-        Movement = Vector3Subtract(Movement, Right);
-    }
-    if (IsKeyDown(KEY_SPACE))
-    {
-        Movement = Vector3Add(Movement, Up);
-    }
-    if (IsKeyDown(KEY_C) || IsKeyDown(KEY_LEFT_CONTROL))
-    {
-        Movement = Vector3Subtract(Movement, Up);
-    }
+    Vector3 Movement = Vector3Add(
+        Vector3Scale(Forward, MoveZ),
+        Vector3Add(Vector3Scale(Right, MoveX), Vector3{ 0.0f, MoveY, 0.0f })
+    );
 
     if (Vector3Length(Movement) > 0.0f)
     {
@@ -114,7 +76,6 @@ void FFreeFlyCamera::Update(float InDeltaTime)
         Camera.position = Vector3Add(Camera.position, Vector3Scale(Movement, CurrentSpeed * InDeltaTime));
     }
 
-    // Camera height clamp (keep above minimum terrain ground plane)
     if (Camera.position.y < 2.0f)
     {
         Camera.position.y = 2.0f;
