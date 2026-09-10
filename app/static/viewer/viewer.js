@@ -9,6 +9,9 @@
   const hudAlt = document.getElementById("hud-alt");
   const hudPos = document.getElementById("hud-pos");
   const hudSlope = document.getElementById("hud-slope");
+  const hudGroundSlope = document.getElementById("hud-ground-slope");
+  const hudProbeDeltaH = document.getElementById("hud-probe-deltah");
+  const hudShading = document.getElementById("hud-shading");
 
   if (!jobId) {
     if (hudStatus) hudStatus.textContent = "NO JOB ID SPECIFIED";
@@ -85,10 +88,48 @@
   };
 
   // Live Telemetry HUD Bridge called directly from Raylib's C++ frame loop
-  window.updateWasmHUD = function (alt, posX, posZ, pitch, fps) {
+  window.updateWasmHUD = function (
+    alt,
+    posX,
+    posZ,
+    pitch,
+    groundSlope,
+    fps,
+    mode,
+    deltaH,
+    probeStatus
+  ) {
     if (hudAlt) hudAlt.textContent = `${alt} m`;
     if (hudPos) hudPos.textContent = `${posX}, ${posZ}`;
     if (hudSlope) hudSlope.textContent = `${pitch}°`;
+    if (hudGroundSlope) hudGroundSlope.textContent = `${groundSlope}°`;
+
+    if (hudProbeDeltaH) {
+      if (probeStatus === 2) {
+        hudProbeDeltaH.textContent = `${deltaH} m (LOCKED)`;
+        hudProbeDeltaH.style.color = "#ffaa00";
+      } else if (probeStatus === 1) {
+        hudProbeDeltaH.textContent = "TARGET MARKED";
+        hudProbeDeltaH.style.color = "#00f0ff";
+      } else {
+        hudProbeDeltaH.textContent = "STANDBY";
+        hudProbeDeltaH.style.color = "var(--color-muted, #71717a)";
+      }
+    }
+
+    if (hudShading) {
+      if (mode === 0) {
+        hudShading.textContent = "OPTICAL RGB";
+        hudShading.style.color = "var(--color-ink)";
+      } else if (mode === 1) {
+        hudShading.textContent = "HILLSHADE";
+        hudShading.style.color = "#ffaa00";
+      } else if (mode === 2) {
+        hudShading.textContent = "WIREFRAME";
+        hudShading.style.color = "var(--color-accent, #ff3333)";
+      }
+    }
+
     if (
       hudStatus &&
       !hudStatus.textContent.includes("FAILED") &&
@@ -105,12 +146,32 @@
     });
   }
 
+  // Allow clicking shading mode badge to cycle texture / hillshade
+  const shadingBtn = document.getElementById("hud-shading-btn");
+  if (shadingBtn) {
+    shadingBtn.addEventListener("click", function () {
+      if (window.Module && window.Module.ccall) {
+        window.Module.ccall("CycleRenderMode", null, [], []);
+      }
+    });
+  }
+
   // Allow clicking the wireframe controls badge in HUD to toggle wireframe
   const wireframeBtn = document.getElementById("hud-wireframe-btn");
   if (wireframeBtn) {
     wireframeBtn.addEventListener("click", function () {
       if (window.Module && window.Module.ccall) {
         window.Module.ccall("ToggleWireframe", null, [], []);
+      }
+    });
+  }
+
+  // Allow clicking structural height probe badge to trigger raycast measurement
+  const probeBtn = document.getElementById("hud-probe-btn");
+  if (probeBtn) {
+    probeBtn.addEventListener("click", function () {
+      if (window.Module && window.Module.ccall) {
+        window.Module.ccall("TriggerProbe", null, [], []);
       }
     });
   }

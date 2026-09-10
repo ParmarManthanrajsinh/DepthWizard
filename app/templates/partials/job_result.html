@@ -50,6 +50,16 @@
       <div class="metric-val val-accent">{{ job.correlation|round(3) }} {{ "(unverified)" if job.is_synthetic_calibration else "" }}</div>
     </div>
     {% endif %}
+    {% if job.mean_slope_deg is not none %}
+    <div class="metric-box">
+      <div class="metric-label">MEAN TERRAIN SLOPE</div>
+      <div class="metric-val">{{ job.mean_slope_deg|round(1) }}°</div>
+    </div>
+    <div class="metric-box">
+      <div class="metric-label">MAX SLOPE / STEEP RELIEF</div>
+      <div class="metric-val">{{ job.max_slope_deg|round(1) }}° <span style="font-size: 0.75rem; color: var(--color-ink-muted);">({{ job.steep_terrain_pct|round(0)|int }}% >25°)</span></div>
+    </div>
+    {% endif %}
   </div>
 
   <!-- Primary Flythrough Action (SIH Criterion 2: 50% Visual Fidelity & Flythrough) -->

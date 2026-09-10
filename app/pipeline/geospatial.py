@@ -149,3 +149,32 @@ def generate_colorized_preview(
     preview_img.save(output_path, format="PNG")
     logger.info(f"Generated preview PNG: {output_path}")
     return output_path
+
+
+def compute_slope_profile(
+    elevation_map: np.ndarray,
+    cell_size_m: float = 30.0
+) -> Dict[str, float]:
+    """
+    Compute geomorphic slope profile metrics from elevation raster using central differences.
+    Returns:
+        mean_slope_deg: Mean terrain slope across the scene (degrees)
+        max_slope_deg: Maximum terrain slope (degrees)
+        steep_terrain_pct: Percentage of terrain with steep slope (> 25 degrees)
+    """
+    if elevation_map.ndim != 2 or elevation_map.size < 4:
+        return {"mean_slope_deg": 0.0, "max_slope_deg": 0.0, "steep_terrain_pct": 0.0}
+
+    gy, gx = np.gradient(elevation_map.astype(np.float32), cell_size_m)
+    rise_run = np.sqrt(gx ** 2 + gy ** 2)
+    slope_deg = np.degrees(np.arctan(rise_run))
+
+    mean_val = float(np.mean(slope_deg))
+    max_val = float(np.max(slope_deg))
+    steep_pct = float(np.count_nonzero(slope_deg > 25.0) / slope_deg.size * 100.0)
+
+    return {
+        "mean_slope_deg": round(mean_val, 1),
+        "max_slope_deg": round(max_val, 1),
+        "steep_terrain_pct": round(steep_pct, 1),
+    }

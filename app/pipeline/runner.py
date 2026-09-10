@@ -90,6 +90,13 @@ def run_pipeline_for_job(job_id: str) -> None:
         job.elevation_max = calib.elevation_max
         job.calibration_source = calib.calibration_source
         job.is_synthetic_calibration = calib.is_synthetic
+
+        from app.pipeline.geospatial import compute_slope_profile
+        slope_metrics = compute_slope_profile(calib.calibrated_elevation)
+        job.mean_slope_deg = slope_metrics["mean_slope_deg"]
+        job.max_slope_deg = slope_metrics["max_slope_deg"]
+        job.steep_terrain_pct = slope_metrics["steep_terrain_pct"]
+
         db.commit()
 
         # Step 4: Export DSM GeoTIFF and Colorized Hillshade Preview

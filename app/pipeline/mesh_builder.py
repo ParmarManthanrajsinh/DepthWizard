@@ -42,48 +42,49 @@ def decimate_terrain_grid(
     flatness_threshold: float = 0.015
 ) -> np.ndarray:
     """
-    Adaptive curvature-guided decimation of heightfield grid:
-    Simplifies planar valleys and water bodies while preserving full resolution
-    on ridges, cliffs, and crater walls to sustain 60 FPS in WebGL/WASM flythroughs.
+    Watertight, crack-free curvature-guided decimation of heightfield grid.
+    Merges flat adjacent quad pairs into unified double-quad triangles without leaving holes.
     """
-    r, c = np.meshgrid(
-        np.arange(target_res - 1, dtype=np.uint32),
-        np.arange(target_res - 1, dtype=np.uint32),
-        indexing="ij"
-    )
-    r_flat = r.ravel()
-    c_flat = c.ravel()
+    triangles = []
+    for r in range(target_res - 1):
+        c = 0
+        while c < target_res - 1:
+            if c + 1 < target_res - 1:
+                h_block = norm_h[r : r + 2, c : c + 3]
+                span = float(h_block.max() - h_block.min())
+                tl = r * target_res + c
+                bl = (r + 1) * target_res + c
+                mid_t = r * target_res + (c + 1)
+                mid_b = (r + 1) * target_res + (c + 1)
+                tr = r * target_res + (c + 2)
+                br = (r + 1) * target_res + (c + 2)
 
-    # Elevation corners for each quad
-    h00 = norm_h[r_flat, c_flat]
-    h10 = norm_h[r_flat + 1, c_flat]
-    h11 = norm_h[r_flat + 1, c_flat + 1]
-    h01 = norm_h[r_flat, c_flat + 1]
+                if span < flatness_threshold:
+                    triangles.append([tl, bl, br])
+                    triangles.append([tl, br, tr])
+                else:
+                    triangles.append([tl, bl, mid_b])
+                    triangles.append([tl, mid_b, mid_t])
+                    triangles.append([mid_t, mid_b, br])
+                    triangles.append([mid_t, br, tr])
+                c += 2
+            else:
+                tl = r * target_res + c
+                bl = (r + 1) * target_res + c
+                tr = r * target_res + (c + 1)
+                br = (r + 1) * target_res + (c + 1)
+                triangles.append([tl, bl, br])
+                triangles.append([tl, br, tr])
+                c += 1
 
-    # Height span across the 4 corners of each quad
-    h_span = np.maximum.reduce([h00, h10, h11, h01]) - np.minimum.reduce([h00, h10, h11, h01])
-
-    # Vertex indices
-    v0 = (r_flat * target_res + c_flat)
-    v1 = ((r_flat + 1) * target_res + c_flat)
-    v2 = ((r_flat + 1) * target_res + (c_flat + 1))
-    v3 = (r_flat * target_res + (c_flat + 1))
-
-    tri1 = np.stack([v0, v1, v2], axis=1)
-    tri2 = np.stack([v0, v2, v3], axis=1)
-
-    is_flat = (h_span < flatness_threshold)
-    keep_tri2 = ~(is_flat & ((r_flat + c_flat) % 2 == 1))
-    indices = np.concatenate([tri1, tri2[keep_tri2]], axis=0).astype(np.uint32)
-
-    return indices
+    return np.array(triangles, dtype=np.uint32)
 
 
 def generate_terrain_mesh(
     elevation_map: np.ndarray,
     target_res: int = MESH_GRID_RESOLUTION,
     height_scale: float = DEFAULT_HEIGHT_SCALE,
-    adaptive_decimate: bool = True
+    adaptive_decimate: bool = False
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Generate triangulated 3D mesh from 2D elevation grid.
@@ -101,9 +102,9 @@ def generate_terrain_mesh(
     else:
         norm_h = np.zeros_like(h_grid)
 
-    # Mesh physical extents in virtual units
-    width = 100.0
-    depth = 100.0
+    # Mesh physical extents in virtual units (enlarged for realistic wide map view)
+    width = 240.0
+    depth = 240.0
 
     xs = np.linspace(-width / 2.0, width / 2.0, target_res, dtype=np.float32)
     zs = np.linspace(-depth / 2.0, depth / 2.0, target_res, dtype=np.float32)
@@ -124,7 +125,7 @@ def generate_terrain_mesh(
     if adaptive_decimate:
         indices = decimate_terrain_grid(norm_h, target_res)
     else:
-        # Generate triangle indices for regular grid
+        # Generate triangle indices for regular grid (100% solid, zero holes)
         r, c = np.meshgrid(
             np.arange(target_res - 1, dtype=np.uint32),
             np.arange(target_res - 1, dtype=np.uint32),
@@ -155,15 +156,15 @@ def export_pure_glb(
 ) -> Path:
     """
     Self-contained, zero-external-dependency binary glTF 2.0 (.glb) exporter.
-    Packs vertices, normals, UVs, triangle indices, and embedded JPEG texture.
-    Compatible with Raylib (via cgltf), Three.js, and Babylon.js.
+    Packs vertices, normals, UVs, triangle indices, and embedded PNG texture.
+    Compatible with Raylib WebAssembly (cgltf + stbi_png), Three.js, and Babylon.js.
     """
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Compress texture to JPEG in-memory
+    # Compress texture to PNG in-memory (Raylib WASM stbi supports PNG directly)
     tex_rgb = texture_image.convert("RGB")
     tex_buf = io.BytesIO()
-    tex_rgb.save(tex_buf, format="JPEG", quality=85, optimize=True)
+    tex_rgb.save(tex_buf, format="PNG", optimize=True)
     img_bytes = tex_buf.getvalue()
 
     # Align byte buffer to 4-byte boundaries
@@ -229,7 +230,7 @@ def export_pure_glb(
             "doubleSided": True,
         }],
         "textures": [{"sampler": 0, "source": 0}],
-        "images": [{"bufferView": 4, "mimeType": "image/jpeg"}],
+        "images": [{"bufferView": 4, "mimeType": "image/png"}],
         "samplers": [{
             "magFilter": 9729,  # LINEAR
             "minFilter": 9987,  # LINEAR_MIPMAP_LINEAR

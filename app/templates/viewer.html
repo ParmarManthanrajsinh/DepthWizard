@@ -40,6 +40,18 @@
       <span>TERRAIN PITCH:</span>
       <span class="hud-val" id="hud-slope">20°</span>
     </div>
+    <div class="hud-stat">
+      <span>GROUND SLOPE:</span>
+      <span class="hud-val" id="hud-ground-slope">0°</span>
+    </div>
+    <div class="hud-stat">
+      <span>STRUCTURAL ΔH:</span>
+      <span class="hud-val" id="hud-probe-deltah" style="color: #ffaa00;">STANDBY</span>
+    </div>
+    <div class="hud-stat">
+      <span>SHADING MODE:</span>
+      <span class="hud-val" id="hud-shading" style="color: var(--color-ink);">OPTICAL RGB</span>
+    </div>
     <div class="hud-stat" style="margin-top: var(--space-2xs); border-top: 2px solid var(--color-rule); padding-top: var(--space-2xs);">
       <span>ENGINE STATE:</span>
       <span class="hud-val" id="hud-status" style="color: var(--color-accent-green);">INITIALIZING</span>
@@ -55,6 +67,8 @@
     <div><kbd>Space</kbd> / <kbd>C</kbd> — CLIMB / DESCEND VECTOR</div>
     <div><kbd>Shift</kbd> — TURBO BOOST (2.5×)</div>
     <div><kbd>Mouse Drag</kbd> — STEER PITCH / YAW</div>
+    <div id="hud-probe-btn" style="cursor: pointer;"><kbd>P</kbd> — MEASURE STRUCTURAL HEIGHT (ΔH)</div>
+    <div id="hud-shading-btn" style="cursor: pointer;"><kbd>T</kbd> — TOGGLE SATELLITE / HILLSHADE</div>
     <div id="hud-wireframe-btn" style="cursor: pointer;"><kbd>X</kbd> — TOGGLE WIREFRAME MESH</div>
   </div>
 

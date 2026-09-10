@@ -28,6 +28,9 @@ def init_db() -> None:
                 ("calibration_source", "VARCHAR(128) DEFAULT 'Unknown'"),
                 ("is_synthetic_calibration", "BOOLEAN DEFAULT 0"),
                 ("model_name", "VARCHAR(128) DEFAULT 'Depth Anything V2'"),
+                ("mean_slope_deg", "FLOAT"),
+                ("max_slope_deg", "FLOAT"),
+                ("steep_terrain_pct", "FLOAT"),
             ]
             for col_name, col_type in new_cols:
                 if col_name not in existing_cols:

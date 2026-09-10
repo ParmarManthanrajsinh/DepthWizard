@@ -28,6 +28,6 @@ em++ \
     -sUSE_GLFW=3 \
     -sALLOW_MEMORY_GROWTH=1 \
     -sEXPORTED_RUNTIME_METHODS="['ccall','cwrap','FS']" \
-    -sEXPORTED_FUNCTIONS="['_main','_LoadTerrainFromMemory','_ToggleWireframe','_ResetCamera','_GetCameraAlt','_GetCameraPosX','_GetCameraPosZ','_GetCameraPitch','_GetEngineFPS']"
+    -sEXPORTED_FUNCTIONS="['_main','_LoadTerrainFromMemory','_ToggleWireframe','_CycleRenderMode','_GetRenderMode','_TriggerProbe','_GetProbeDeltaH','_GetGroundSlope','_ResetCamera','_GetCameraAlt','_GetCameraPosX','_GetCameraPosZ','_GetCameraPitch','_GetEngineFPS']"
 
 echo "=== Build Complete! Output: ${OUTPUT_DIR}/raylib_viewer.js ==="

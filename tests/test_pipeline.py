@@ -142,6 +142,23 @@ class TestElevationPipeline(unittest.TestCase):
         self.assertGreater(res.elevation_max, res.elevation_min)
         self.assertGreater(res.correlation, 0.95)
 
+    def test_compute_slope_profile(self):
+        from app.pipeline.geospatial import compute_slope_profile
+        # Flat plane
+        flat = np.ones((50, 50), dtype=np.float32) * 100.0
+        stats_flat = compute_slope_profile(flat, cell_size_m=30.0)
+        self.assertAlmostEqual(stats_flat["mean_slope_deg"], 0.0, places=2)
+        self.assertAlmostEqual(stats_flat["max_slope_deg"], 0.0, places=2)
+        self.assertEqual(stats_flat["steep_terrain_pct"], 0.0)
+
+        # 45-degree slope (rise = run: 30m rise per 30m cell)
+        x = np.arange(50, dtype=np.float32) * 30.0
+        ramp = np.tile(x, (50, 1))
+        stats_ramp = compute_slope_profile(ramp, cell_size_m=30.0)
+        self.assertGreater(stats_ramp["mean_slope_deg"], 40.0)
+        self.assertGreater(stats_ramp["steep_terrain_pct"], 90.0)
+
 
 if __name__ == "__main__":
     unittest.main()
+

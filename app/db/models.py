@@ -40,6 +40,9 @@ class Job(Base):
     calibration_source = Column(String(128), default="Unknown")
     is_synthetic_calibration = Column(Boolean, default=False)
     model_name = Column(String(128), default="Depth Anything V2")
+    mean_slope_deg = Column(Float, nullable=True)
+    max_slope_deg = Column(Float, nullable=True)
+    steep_terrain_pct = Column(Float, nullable=True)
 
     # Generated Artifacts
     dsm_path = Column(String(512), nullable=True)
@@ -69,6 +72,9 @@ class Job(Base):
                 "correlation": round(self.correlation, 3) if self.correlation is not None else None,
                 "elevation_min": round(self.elevation_min, 2) if self.elevation_min is not None else None,
                 "elevation_max": round(self.elevation_max, 2) if self.elevation_max is not None else None,
+                "mean_slope": round(self.mean_slope_deg, 1) if self.mean_slope_deg is not None else None,
+                "max_slope": round(self.max_slope_deg, 1) if self.max_slope_deg is not None else None,
+                "steep_terrain_pct": round(self.steep_terrain_pct, 1) if self.steep_terrain_pct is not None else None,
                 "calibration_source": self.calibration_source,
                 "is_synthetic": self.is_synthetic_calibration,
             },

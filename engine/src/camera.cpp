@@ -4,14 +4,14 @@
 #include <cmath>
 
 FFreeFlyCamera::FFreeFlyCamera()
-    : MoveSpeed(35.0f)
+    : MoveSpeed(55.0f)
     , LookSpeed(0.003f)
-    , Pitch(-0.28f)
+    , Pitch(-0.44f)
     , Yaw(3.14159265f)
 {
     Camera = { 0 };
-    Camera.position = Vector3{ 0.0f, 45.0f, 85.0f };
-    Camera.target = Vector3{ 0.0f, 20.0f, 0.0f };
+    Camera.position = Vector3{ 0.0f, 95.0f, 180.0f };
+    Camera.target = Vector3{ 0.0f, 15.0f, 0.0f };
     Camera.up = Vector3{ 0.0f, 1.0f, 0.0f };
     Camera.fovy = 60.0f;
     Camera.projection = CAMERA_PERSPECTIVE;
@@ -32,14 +32,14 @@ void FFreeFlyCamera::Initialize(const Vector3& InStartPos, const Vector3& InTarg
     }
     else
     {
-        Pitch = -0.28f;
+        Pitch = -0.44f;
         Yaw = 3.14159265f;
     }
 }
 
 void FFreeFlyCamera::Reset()
 {
-    Initialize(Vector3{ 0.0f, 45.0f, 85.0f }, Vector3{ 0.0f, 20.0f, 0.0f });
+    Initialize(Vector3{ 0.0f, 95.0f, 180.0f }, Vector3{ 0.0f, 15.0f, 0.0f });
 }
 
 void FFreeFlyCamera::Update(float InDeltaTime)
