@@ -1,0 +1,68 @@
+<div class="result-container">
+  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-sm);">
+    <div style="display: flex; align-items: center; gap: var(--space-2xs); color: var(--color-accent-green); font-family: var(--font-mono); font-size: 0.85rem; font-weight: 700; text-transform: uppercase;">
+      <span style="font-size: 1rem;">■</span> RECONSTRUCTION COMPLETE
+    </div>
+    <span class="card-badge status-ready">
+      {{ "GEOREFERENCED (ABSOLUTE DSM)" if job.is_georeferenced else "OPTICAL (RELATIVE rDSM)" }}
+    </span>
+  </div>
+
+  {% if job.preview_path %}
+    <div class="preview-thumbnail-wrap">
+      <img src="/api/jobs/{{ job.id }}/preview" alt="Elevation Color Relief Preview" class="preview-thumbnail">
+    </div>
+  {% endif %}
+
+  <!-- Accuracy & Elevation Metrics (SIH Criterion 1: 50% DSM accuracy) -->
+  <div class="metrics-grid">
+    <div class="metric-box">
+      <div class="metric-label">MIN ELEVATION</div>
+      <div class="metric-val">{{ job.elevation_min|round(1) if job.elevation_min is not none else "0.0" }} {{ "m" if job.is_georeferenced else "rel" }}</div>
+    </div>
+    <div class="metric-box">
+      <div class="metric-label">MAX ELEVATION</div>
+      <div class="metric-val">{{ job.elevation_max|round(1) if job.elevation_max is not none else "100.0" }} {{ "m" if job.is_georeferenced else "rel" }}</div>
+    </div>
+    {% if job.is_georeferenced and job.rmse is not none %}
+    <div class="metric-box">
+      <div class="metric-label">CALIBRATION RMSE</div>
+      <div class="metric-val val-amber">{{ job.rmse|round(2) }} m</div>
+    </div>
+    <div class="metric-box">
+      <div class="metric-label">CORRELATION (r)</div>
+      <div class="metric-val val-accent">{{ job.correlation|round(3) }}</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Primary Flythrough Action (SIH Criterion 2: 50% Visual Fidelity & Flythrough) -->
+  <a href="/viewer?job={{ job.id }}" class="btn-primary" style="margin-top: var(--space-xs); text-decoration: none;">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <polygon points="5 3 19 12 5 21 5 3"/>
+    </svg>
+    <span>LAUNCH 3D TERRAIN FLYTHROUGH</span>
+  </a>
+
+  <!-- Secondary Download Actions -->
+  <div class="actions-row" style="margin-top: var(--space-xs);">
+    {% if job.dsm_path %}
+    <a href="/api/jobs/{{ job.id }}/dsm" class="btn-secondary" download>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15v4H5v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      <span>GEOTIFF DSM</span>
+    </a>
+    {% endif %}
+    {% if job.mesh_path %}
+    <a href="/api/jobs/{{ job.id }}/mesh" class="btn-secondary" download>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+      </svg>
+      <span>glTF MESH (.glb)</span>
+    </a>
+    {% endif %}
+  </div>
+</div>

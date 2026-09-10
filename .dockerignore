@@ -1,0 +1,11 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.git
+.gitignore
+venv
+data/uploads/*
+data/outputs/*
+data/depthwizard.db
+engine/build

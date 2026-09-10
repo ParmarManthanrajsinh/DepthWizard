@@ -1,0 +1,20 @@
+[
+  {
+    "date": "2026-09-10",
+    "macrostructure": "Workbench",
+    "genre": "editorial",
+    "theme": "Manifesto",
+    "nav": "N9 Edge-aligned minimal",
+    "footer": "Ft2 Inline single-line",
+    "brief": "DepthWizard UI/UX redesign: theme Manifesto, stark carbon, signal red, Space Grotesk geometric sans, 0px sharp geometry"
+  },
+  {
+    "date": "2026-09-10",
+    "macrostructure": "Workbench",
+    "genre": "modern-minimal",
+    "theme": "Cobalt / Midnight Telemetry",
+    "nav": "N9 Edge-aligned minimal",
+    "footer": "Ft2 Inline single-line",
+    "brief": "DepthWizard UI/UX redesign: clean aerospace telemetry, anti-slop, monocular height estimation and 3D flythrough"
+  }
+]

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Raylib WASM Flythrough</title>
+    <style>
+      body { margin: 0; background-color: #07090e; overflow: hidden; }
+      canvas.emscripten { border: 0px none; width: 100vw; height: 100vh; display: block; }
+    </style>
+  </head>
+  <body>
+    <canvas class="emscripten" id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+    <script type='text/javascript'>
+      var Module = {
+        canvas: (function() {
+          var canvas = document.getElementById('canvas');
+          return canvas;
+        })()
+      };
+    </script>
+    {{{ SCRIPT }}}
+  </body>
+</html>

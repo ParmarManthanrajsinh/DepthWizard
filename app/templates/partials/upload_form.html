@@ -1,0 +1,54 @@
+<div class="instrument-card">
+  <div class="card-header">
+    <div class="card-title-group">
+      <div class="card-title">OPTICAL IMAGERY INGESTION</div>
+      <div class="card-subtitle">Support for standard optical frames (.png, .jpg) or georeferenced GeoTIFFs (.tif)</div>
+    </div>
+    <span class="card-badge">INPUT CONSOLE</span>
+  </div>
+
+  <form id="upload-form"
+        hx-post="/api/jobs"
+        hx-target="#job-status-panel"
+        hx-swap="innerHTML"
+        enctype="multipart/form-data">
+    <div class="dropzone" id="dropzone">
+      <div class="dropzone-icon-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square">
+          <path d="M21 15v4H5v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+      </div>
+      <div class="dropzone-title">DROP TARGET SATELLITE IMAGERY OR BROWSE</div>
+      <div class="dropzone-sub">GEOTIFF (.tif, .tiff) OR OPTICAL (.png, .jpg) · MAX 100MB</div>
+      <input type="file" id="file-input" name="file" accept=".png,.jpg,.jpeg,.tif,.tiff" required>
+    </div>
+
+    <div id="selected-file-pill" class="file-selected-indicator" style="display: none;">
+      <span>TARGET:</span> <strong id="selected-file-name"></strong>
+    </div>
+
+    <button type="submit" class="btn-primary" id="submit-btn" disabled>
+      <span>PROCESS ELEVATION &amp; SYNTHESIZE MESH</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square">
+        <line x1="5" y1="12" x2="19" y2="12"/>
+        <polyline points="12 5 19 12 12 19"/>
+      </svg>
+    </button>
+  </form>
+
+  <div class="sample-bar">
+    <div class="sample-bar-title">BENCHMARK DATASETS // INSTANT DISPATCH</div>
+    <div class="sample-buttons">
+      <button type="button" class="btn-sample" onclick="runSample('sample_himalayas.tif')">
+        <span>HIMALAYAN ALPINE RIDGE</span>
+        <span class="btn-sample-tag">GEOTIFF + SRTM-30M</span>
+      </button>
+      <button type="button" class="btn-sample" onclick="runSample('sample_crater.png')">
+        <span>IMPACT CRATER COMPLEX</span>
+        <span class="btn-sample-tag">OPTICAL RELATIVE rDSM</span>
+      </button>
+    </div>
+  </div>
+</div>

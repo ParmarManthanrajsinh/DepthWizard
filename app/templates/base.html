@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}DepthWizard // Single-View Height Estimation &amp; 3D Flythrough{% endblock %}</title>
+  <meta name="description" content="Turn optical 2D satellite imagery into metric Digital Surface Models and interactive 3D flythroughs. ISRO SIH26175.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <!-- HTMX for reactive server-driven UI -->
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+</head>
+<body>
+  <header class="navbar">
+    <a href="/" class="brand">
+      <span class="brand-badge">ISRO SAC // SIH26175</span>
+      <span class="brand-title">DepthWizard</span>
+    </a>
+    <span class="nav-tagline">MONOCULAR DSM SYNTHESIS &amp; 3D TERRAIN FLYTHROUGH</span>
+    <nav class="nav-links">
+      <a href="/" class="nav-link">CONSOLE</a>
+      <a href="/#architecture" class="nav-link">PIPELINE</a>
+      <a href="/#jobs" class="nav-link">LEDGER</a>
+      <a href="https://github.com/IMG-PROCESS-SAC/SIH2026" target="_blank" rel="noopener" class="nav-link external">SAC REPO ↗</a>
+    </nav>
+  </header>
+
+  <main class="container">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="footer">
+    <span>DEPTHWIZARD // MONOCULAR RECONSTRUCTION &amp; REAL-TIME FLYTHROUGH</span>
+    <span>ISRO SPACE APPLICATIONS CENTRE · SIH26175</span>
+  </footer>
+
+  <script src="/static/js/app.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

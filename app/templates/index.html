@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero">
+  <div class="hero-meta">
+    <span class="hero-meta-dot"></span>
+    <span>ISRO SAC // PROBLEM STATEMENT SIH26175</span>
+  </div>
+  <h1>SINGLE-VIEW OPTICAL TO METRIC 3D SURFACE</h1>
+  <p>
+    Turn monocular satellite and aerial imagery into calibrated Digital Surface Models (DSM).
+    Direct affine scale regression against reference SRTM-30m and 60 FPS real-time terrain navigation.
+  </p>
+</section>
+
+<div class="workbench-grid">
+  <!-- Left Column: Ingestion Console -->
+  <div id="upload-panel">
+    {% include "partials/upload_form.html" %}
+  </div>
+
+  <!-- Right Column: Telemetry & Execution Deck -->
+  <div id="job-status-panel">
+    <div class="instrument-card" style="min-height: 380px;">
+      <div class="card-header">
+        <div class="card-title-group">
+          <div class="card-title">EXECUTION &amp; TELEMETRY DECK</div>
+          <div class="card-subtitle">Real-time pipeline monitoring, regression diagnostics, and mesh generation</div>
+        </div>
+        <span class="card-badge status-ready">STANDBY</span>
+      </div>
+      <div class="empty-state">
+        <div class="empty-state-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" stroke-linejoin="miter">
+            <rect x="3" y="3" width="18" height="18"/>
+            <line x1="12" y1="3" x2="12" y2="21"/>
+            <line x1="3" y1="12" x2="21" y2="12"/>
+          </svg>
+        </div>
+        <h3>SYSTEM READY FOR TARGET</h3>
+        <p>
+          Select an optical satellite scene or trigger a benchmark dataset on the left to initiate depth regression.
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Architecture & Pipeline Breakdown -->
+<section id="architecture" class="architecture-section">
+  <div class="section-title-wrap">
+    <div class="section-kicker">PIPELINE SPECIFICATIONS</div>
+    <div class="section-heading">INTEGRATED MONOREPO ENGINE</div>
+    <div class="section-desc">ENGINEERED FOR THE 50/50 CRITERION: METRIC ACCURACY (DSM) + VISUAL FIDELITY (3D).</div>
+  </div>
+
+  <div class="modules-grid">
+    <div class="module-card">
+      <div class="module-header">
+        <span class="module-num">[MOD-01]</span>
+      </div>
+      <div class="module-title">ELEVATION REGRESSION</div>
+      <div class="module-desc">
+        Depth Anything V2 monocular foundation weights coupled with least-squares affine scale/offset fitting against SRTM-30m reference grids.
+      </div>
+    </div>
+
+    <div class="module-card">
+      <div class="module-header">
+        <span class="module-num">[MOD-02]</span>
+      </div>
+      <div class="module-title">MESH SYNTHESIS</div>
+      <div class="module-desc">
+        Regular heightfield 2.5D triangulation, automated smooth surface normal computation, and optical RGB texture projection exported to glTF (.glb).
+      </div>
+    </div>
+
+    <div class="module-card">
+      <div class="module-header">
+        <span class="module-num">[MOD-03]</span>
+      </div>
+      <div class="module-title">3D FLYTHROUGH RUNTIME</div>
+      <div class="module-desc">
+        Raylib C++ compiled to WebAssembly with Three.js WebGL fallback, first-person 6-DOF camera controls, and real-time altitude telemetry HUD.
+      </div>
+    </div>
+
+    <div class="module-card">
+      <div class="module-header">
+        <span class="module-num">[MOD-04]</span>
+      </div>
+      <div class="module-title">WEB ORCHESTRATION</div>
+      <div class="module-desc">
+        FastAPI async execution queue, HTMX dynamic server-rendered partials, and SQLite metadata persistence with zero heavy client frameworks.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Execution Ledger -->
+<section id="jobs" class="jobs-section">
+  <div class="section-title-wrap">
+    <div class="section-kicker">EXECUTION LEDGER</div>
+    <div class="section-heading">PERSISTED RECONSTRUCTIONS</div>
+    <div class="section-desc">RECORD OF LOCAL RUNS STORED IN SQLITE.</div>
+  </div>
+
+  {% if jobs and jobs|length > 0 %}
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>JOB ID</th>
+          <th>SOURCE TARGET</th>
+          <th>DATASET TYPE</th>
+          <th>STATUS</th>
+          <th>CALIBRATION RMSE</th>
+          <th>ACTIONS</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for j in jobs %}
+        <tr>
+          <td class="cell-id">{{ j.id[:8] }}</td>
+          <td class="cell-name">{{ j.filename }}</td>
+          <td>
+            <span class="card-badge">
+              {{ "GEOTIFF · METRIC" if j.is_georeferenced else "OPTICAL · RELATIVE" }}
+            </span>
+          </td>
+          <td>
+            <span class="status-tag {{ 'tag-completed' if j.status == 'COMPLETED' else 'tag-processing' if j.status == 'PROCESSING' else 'tag-failed' }}">
+              ● {{ j.status }}
+            </span>
+          </td>
+          <td style="font-family: var(--font-mono); font-weight: 700;">
+            {{ j.rmse|round(2) ~ " m" if j.rmse is not none else "—" }}
+          </td>
+          <td>
+            {% if j.status == 'COMPLETED' %}
+            <a href="/viewer?job={{ j.id }}" class="btn-sample" style="display: inline-flex; width: auto; padding: 0.35rem 0.75rem; text-decoration: none;">
+              FLYTHROUGH ↗
+            </a>
+            {% else %}
+            <button class="btn-sample" style="display: inline-flex; width: auto; padding: 0.35rem 0.75rem;" hx-get="/jobs/{{ j.id }}/status" hx-target="#job-status-panel" hx-swap="innerHTML">
+              INSPECT
+            </button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="instrument-card" style="text-align: center; padding: var(--space-xl) var(--space-md); color: var(--color-ink-dim); font-family: var(--font-mono);">
+    NO PRIOR EXECUTIONS RECORDED. LOAD TARGET TO INITIALIZE.
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

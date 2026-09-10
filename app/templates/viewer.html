@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>3D TERRAIN FLYTHROUGH // DEPTHWIZARD</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/style.css">
+  <!-- Three.js & GLTFLoader CDN for standalone WebGL rendering -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+</head>
+<body class="viewer-layout">
+  <div id="canvas-container"></div>
+
+  <!-- Telemetry HUD Overlay -->
+  <div class="viewer-hud">
+    <div class="hud-title">
+      <span class="pulse-dot"></span>
+      <span>FLIGHT TELEMETRY HUD</span>
+    </div>
+    <div class="hud-stat">
+      <span>TARGET SCENE:</span>
+      <span class="hud-val" id="hud-filename">Loading...</span>
+    </div>
+    <div class="hud-stat">
+      <span>SPATIAL CRS:</span>
+      <span class="hud-val" id="hud-crs">—</span>
+    </div>
+    <div class="hud-stat">
+      <span>CAMERA ALTITUDE:</span>
+      <span class="hud-val" id="hud-alt" style="color: var(--color-accent);">450 m</span>
+    </div>
+    <div class="hud-stat">
+      <span>COORDINATES (X, Y):</span>
+      <span class="hud-val" id="hud-pos">0, 85</span>
+    </div>
+    <div class="hud-stat">
+      <span>TERRAIN PITCH:</span>
+      <span class="hud-val" id="hud-slope">20°</span>
+    </div>
+    <div class="hud-stat" style="margin-top: var(--space-2xs); border-top: 2px solid var(--color-rule); padding-top: var(--space-2xs);">
+      <span>ENGINE STATE:</span>
+      <span class="hud-val" id="hud-status" style="color: var(--color-accent-green);">INITIALIZING</span>
+    </div>
+  </div>
+
+  <!-- Flight Controls Help Card -->
+  <div class="viewer-controls-card">
+    <div style="font-family: var(--font-display); font-size: 0.8rem; color: var(--color-ink); font-weight: 700; text-transform: uppercase; margin-bottom: 0.2rem;">
+      FLIGHT NAVIGATION
+    </div>
+    <div><kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> — FORWARD / LATERAL VECTOR</div>
+    <div><kbd>Space</kbd> / <kbd>C</kbd> — CLIMB / DESCEND VECTOR</div>
+    <div><kbd>Shift</kbd> — TURBO BOOST (2.5×)</div>
+    <div><kbd>Mouse Drag</kbd> — STEER PITCH / YAW</div>
+    <div><kbd>X</kbd> — TOGGLE WIREFRAME MESH</div>
+  </div>
+
+  <a href="/" class="viewer-exit-btn">← EXIT TO CONSOLE</a>
+
+  <!-- Fallback & WASM Viewers -->
+  <script src="/static/viewer/three_fallback.js"></script>
+  <script src="/static/viewer/viewer.js"></script>
+</body>
+</html>

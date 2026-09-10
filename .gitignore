@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.env
+venv/
+env/
+.venv/
+
+# Application Data / Outputs (keep samples)
+data/uploads/*
+!data/uploads/.gitkeep
+data/outputs/*
+!data/outputs/.gitkeep
+data/depthwizard.db
+data/depthwizard.db-journal
+
+# Engine / C++ Build artifacts
+engine/build/
+engine/bin/
+*.o
+*.obj
+*.exe
+
+# IDE
+.vscode/
+.idea/
+*.swp

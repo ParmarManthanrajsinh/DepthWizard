@@ -1,0 +1,45 @@
+<div class="instrument-card" 
+     id="job-status-card"
+     {% if job.status in ['PENDING', 'PROCESSING'] %}
+     hx-get="/jobs/{{ job.id }}/status" 
+     hx-trigger="load delay:1.5s" 
+     hx-swap="outerHTML"
+     {% endif %}>
+  
+  <div class="card-header">
+    <div class="card-title-group">
+      <div class="card-title">PIPELINE EXECUTION</div>
+      <div class="card-subtitle">Source Target: <strong style="color: var(--color-ink); font-family: var(--font-mono);">{{ job.filename }}</strong></div>
+    </div>
+    <span class="card-badge {{ 'status-active' if job.status in ['PENDING', 'PROCESSING'] else 'status-ready' }}">
+      ID: {{ job.id[:8] }}
+    </span>
+  </div>
+
+  {% if job.status in ['PENDING', 'PROCESSING'] %}
+    <div class="progress-container">
+      <div class="progress-header">
+        <span>{{ job.current_step }}</span>
+        <strong>{{ job.progress }}%</strong>
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar-fill" style="width: {{ job.progress }}%;"></div>
+      </div>
+    </div>
+
+    <div class="step-indicator">
+      <div class="pulse-dot"></div>
+      <span>{{ job.current_step }}</span>
+    </div>
+
+  {% elif job.status == 'COMPLETED' %}
+    {% include "partials/job_result.html" %}
+
+  {% elif job.status == 'FAILED' %}
+    <div style="background-color: rgba(255, 51, 51, 0.08); border: 2px solid var(--color-accent); padding: var(--space-sm); margin: var(--space-md) 0;">
+      <div style="font-family: var(--font-mono); font-size: 0.8rem; color: var(--color-accent); margin-bottom: 0.2rem; font-weight: 700; text-transform: uppercase;">PROCESSING FAULT DETECTED</div>
+      <p style="font-size: 0.85rem; color: var(--color-ink-2);">{{ job.error_message or "An unhandled exception occurred during depth regression." }}</p>
+    </div>
+    <button class="btn-secondary" style="width: 100%;" onclick="location.reload()">RESET CONSOLE</button>
+  {% endif %}
+</div>
