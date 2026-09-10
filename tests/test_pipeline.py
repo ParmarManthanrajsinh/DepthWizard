@@ -32,6 +32,8 @@ class TestElevationPipeline(unittest.TestCase):
         self.assertIsNone(res.mae)
         self.assertAlmostEqual(res.elevation_min, 0.0, places=3)
         self.assertAlmostEqual(res.elevation_max, 100.0, places=3)
+        self.assertIn("Relative", res.calibration_source)
+        self.assertFalse(res.is_synthetic)
 
     def test_scale_calibration_georeferenced(self):
         rel_depth = np.linspace(0.1, 0.9, 100).reshape((10, 10)).astype(np.float32)
@@ -40,6 +42,7 @@ class TestElevationPipeline(unittest.TestCase):
         self.assertIsNotNone(res.mae)
         self.assertIsNotNone(res.correlation)
         self.assertGreater(res.elevation_max, res.elevation_min)
+        self.assertIsNotNone(res.calibration_source)
 
     def test_mesh_generation(self):
         elevation = np.zeros((32, 32), dtype=np.float32)

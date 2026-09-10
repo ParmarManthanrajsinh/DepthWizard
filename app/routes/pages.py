@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-from app.config import TEMPLATES_DIR
+from app.config import TEMPLATES_DIR, USE_MOCK_MODEL, is_real_model_available
 from app.db.models import Job
 from app.db.session import get_db
 
@@ -11,14 +11,24 @@ router = APIRouter(tags=["Pages"])
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
+def get_model_context() -> dict:
+    has_real = is_real_model_available() and not USE_MOCK_MODEL
+    return {
+        "active_model_is_real": has_real,
+        "active_model_name": "Depth Anything V2 [PyTorch]" if has_real else "Mock Estimator [Dev Mode]"
+    }
+
+
 @router.get("/", response_class=HTMLResponse)
 def index_page(request: Request, db: Session = Depends(get_db)):
     """Main dashboard page."""
     jobs = db.query(Job).order_by(Job.created_at.desc()).limit(10).all()
+    ctx = {"jobs": jobs}
+    ctx.update(get_model_context())
     return templates.TemplateResponse(
         request=request,
         name="index.html",
-        context={"jobs": jobs}
+        context=ctx
     )
 
 

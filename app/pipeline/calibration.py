@@ -8,7 +8,7 @@ from pathlib import Path
 import urllib.request
 import urllib.error
 
-from app.config import DEM_CACHE_DIR
+from app.config import DEM_CACHE_DIR, OPENTOPOGRAPHY_API_KEY
 
 logger = logging.getLogger("depthwizard.pipeline.calibration")
 
@@ -55,14 +55,28 @@ def fetch_srtm_elevation_tile(
                 dem = src.read(1, out_shape=target_shape, resampling=rasterio.enums.Resampling.bilinear)
                 return dem.astype(np.float32)
 
+        # Also check for bundled offline DEM GeoTIFFs in DEM_CACHE_DIR
+        for bundled_dem in DEM_CACHE_DIR.glob("*.tif"):
+            try:
+                import rasterio
+                with rasterio.open(bundled_dem) as src:
+                    dem = src.read(1, out_shape=target_shape, resampling=rasterio.enums.Resampling.bilinear)
+                    logger.info(f"Using bundled offline DEM tile: {bundled_dem.name}")
+                    return dem.astype(np.float32)
+            except Exception:
+                pass
+
         # Attempt query to OpenTopography Global SRTM 30m API
         url = (
             f"https://portal.opentopography.org/API/globaldem?"
             f"demtype=SRTMGL1&south={s:.4f}&north={n:.4f}&west={w:.4f}&east={e:.4f}&outputFormat=GTiff"
         )
+        if OPENTOPOGRAPHY_API_KEY:
+            url += f"&API_Key={OPENTOPOGRAPHY_API_KEY}"
+
         logger.info(f"Querying OpenTopography SRTM-30m tile: {url}")
         req = urllib.request.Request(url, headers={"User-Agent": "DepthWizard-ISRO/1.0"})
-        with urllib.request.urlopen(req, timeout=3.0) as resp:
+        with urllib.request.urlopen(req, timeout=3.5) as resp:
             content = resp.read()
             if content.startswith(b"II*\x00") or content.startswith(b"MM\x00*"):
                 cache_file.write_bytes(content)
@@ -72,7 +86,7 @@ def fetch_srtm_elevation_tile(
                     dem = src.read(1, out_shape=target_shape, resampling=rasterio.enums.Resampling.bilinear)
                     return dem.astype(np.float32)
             else:
-                logger.debug("OpenTopography response was not a GeoTIFF (rate limit or API restriction).")
+                logger.debug("OpenTopography response was not a GeoTIFF (rate limit or API key restriction).")
     except Exception as exc:
         logger.debug(f"OpenTopography SRTM tile retrieval skipped ({exc}); falling back to local estimator.")
 
@@ -89,6 +103,8 @@ class CalibrationResult:
     elevation_max: float
     scale: float
     offset: float
+    calibration_source: str = "Unknown"
+    is_synthetic: bool = False
 
 
 def fit_linear_scale_offset(
@@ -220,7 +236,9 @@ def calibrate_with_gcps(
         elevation_min=float(calibrated.min()),
         elevation_max=float(calibrated.max()),
         scale=scale,
-        offset=offset
+        offset=offset,
+        calibration_source=f"Ground Control Points ({len(rel_samples)} GCPs)",
+        is_synthetic=False
     )
 
 
@@ -258,32 +276,47 @@ def calibrate_elevation(
             elevation_min=float(calibrated.min()),
             elevation_max=float(calibrated.max()),
             scale=100.0,
-            offset=0.0
+            offset=0.0,
+            calibration_source="Relative Heightfield (Ungeoreferenced rDSM)",
+            is_synthetic=False
         )
 
     # Georeferenced mode: Absolute DSM with metric heights
+    calib_source = "Unknown"
+    is_synth = False
+
     if reference_dem is not None and reference_dem.shape == (h, w):
         ref = reference_dem
+        calib_source = "User-Provided Reference DEM"
+        is_synth = False
     else:
         # Attempt to retrieve live/cached SRTM-30m elevation tile for bounds
         srtm_tile = fetch_srtm_elevation_tile(bounds, None, (h, w))
         if srtm_tile is not None and srtm_tile.shape == (h, w):
             ref = srtm_tile
+            calib_source = "SRTM-30m (Verified Reference DEM)"
+            is_synth = False
             logger.info("Calibrated depth using live/cached SRTM-30m reference tile.")
         else:
             # Fallback: Coarse topographic baseline (simulating coarse 30m SRTM)
+            calib_source = "Synthetic Baseline (Offline Fallback - Unverified DEM)"
+            is_synth = True
             base_h = 750.0
             range_h = 1450.0
             y = np.linspace(0, 3.1415, h)[:, None]
             x = np.linspace(0, 3.1415, w)[None, :]
             coarse_dem = base_h + range_h * (0.6 * np.sin(x) * np.cos(y) + 0.4 * d_norm)
             ref = coarse_dem.astype(np.float32)
+            logger.warning(
+                "SRTM elevation unavailable; calibrated using synthetic baseline. "
+                "Metrics do not reflect real ground-truth accuracy."
+            )
 
     scale, offset, rmse, mae, corr = fit_linear_scale_offset(d_norm, ref)
     calibrated = (scale * d_norm + offset).astype(np.float32)
 
     logger.info(
-        f"Scale Calibration Complete: scale={scale:.2f}, offset={offset:.2f}m, "
+        f"Scale Calibration Complete [{calib_source}]: scale={scale:.2f}, offset={offset:.2f}m, "
         f"RMSE={rmse:.2f}m, MAE={mae:.2f}m, Correlation={corr:.3f}"
     )
 
@@ -295,5 +328,7 @@ def calibrate_elevation(
         elevation_min=float(calibrated.min()),
         elevation_max=float(calibrated.max()),
         scale=scale,
-        offset=offset
+        offset=offset,
+        calibration_source=calib_source,
+        is_synthetic=is_synth
     )

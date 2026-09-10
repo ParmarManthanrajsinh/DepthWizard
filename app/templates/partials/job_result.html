@@ -1,12 +1,28 @@
 <div class="result-container">
-  <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-sm);">
+  <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-2xs); margin-bottom: var(--space-sm);">
     <div style="display: flex; align-items: center; gap: var(--space-2xs); color: var(--color-accent-green); font-family: var(--font-mono); font-size: 0.85rem; font-weight: 700; text-transform: uppercase;">
       <span style="font-size: 1rem;">■</span> RECONSTRUCTION COMPLETE
     </div>
-    <span class="card-badge status-ready">
-      {{ "GEOREFERENCED (ABSOLUTE DSM)" if job.is_georeferenced else "OPTICAL (RELATIVE rDSM)" }}
-    </span>
+    <div style="display: flex; gap: var(--space-2xs); flex-wrap: wrap;">
+      <span class="card-badge" style="background: rgba(255, 255, 255, 0.06); border: 1px solid var(--color-border); color: var(--color-ink-2); font-size: 0.7rem;">
+        {{ job.model_name or "Depth Anything V2" }}
+      </span>
+      <span class="card-badge status-ready" style="font-size: 0.7rem;">
+        {{ "GEOREFERENCED (ABSOLUTE DSM)" if job.is_georeferenced else "OPTICAL (RELATIVE rDSM)" }}
+      </span>
+    </div>
   </div>
+
+  {% if job.is_synthetic_calibration %}
+  <div style="background: rgba(255, 51, 51, 0.08); border-left: 3px solid var(--color-accent); padding: var(--space-xs) var(--space-sm); font-family: var(--font-mono); font-size: 0.72rem; color: var(--color-ink-2); margin-bottom: var(--space-xs); line-height: 1.4;">
+    <span style="color: var(--color-accent); font-weight: 700;">[UNVERIFIED ACCURACY] OFFLINE SYNTHETIC BASELINE:</span>
+    SRTM tile was unreachable offline. Heightfield scaled against synthetic topographic curve. Provide <code>OPENTOPOGRAPHY_API_KEY</code>, GCP CSV, or bundled DEM tile for official benchmark accuracy.
+  </div>
+  {% elif job.is_georeferenced and job.calibration_source %}
+  <div style="background: rgba(0, 230, 153, 0.08); border-left: 3px solid #00e699; padding: var(--space-xs) var(--space-sm); font-family: var(--font-mono); font-size: 0.72rem; color: #00e699; margin-bottom: var(--space-xs); line-height: 1.4;">
+    <strong>[VERIFIED] CALIBRATION REFERENCE:</strong> {{ job.calibration_source }}
+  </div>
+  {% endif %}
 
   {% if job.preview_path %}
     <div class="preview-thumbnail-wrap">
@@ -26,12 +42,12 @@
     </div>
     {% if job.is_georeferenced and job.rmse is not none %}
     <div class="metric-box">
-      <div class="metric-label">CALIBRATION RMSE</div>
-      <div class="metric-val val-amber">{{ job.rmse|round(2) }} m</div>
+      <div class="metric-label">{{ "BASELINE RMSE (SYNTHETIC)" if job.is_synthetic_calibration else "SRTM-30M RMSE (GROUND TRUTH)" }}</div>
+      <div class="metric-val {{ 'val-accent' if job.is_synthetic_calibration else 'val-amber' }}">{{ job.rmse|round(2) }} m</div>
     </div>
     <div class="metric-box">
-      <div class="metric-label">CORRELATION (r)</div>
-      <div class="metric-val val-accent">{{ job.correlation|round(3) }}</div>
+      <div class="metric-label">{{ "BASELINE CORRELATION (r)" if job.is_synthetic_calibration else "CORRELATION (r)" }}</div>
+      <div class="metric-val val-accent">{{ job.correlation|round(3) }} {{ "(unverified)" if job.is_synthetic_calibration else "" }}</div>
     </div>
     {% endif %}
   </div>

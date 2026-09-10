@@ -23,6 +23,18 @@ DEPTH_MODEL_NAME = os.getenv(
 )
 # If True or if torch/transformers are missing, pipeline runs synthetic/mock estimator
 USE_MOCK_MODEL = os.getenv("USE_MOCK_MODEL", "false").lower() in ("true", "1", "yes")
+OPENTOPOGRAPHY_API_KEY = os.getenv("OPENTOPOGRAPHY_API_KEY", "")
+
+
+def is_real_model_available() -> bool:
+    """Check if PyTorch & transformers are present in environment."""
+    try:
+        import torch  # noqa: F401
+        import transformers  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
 
 # Hardware Device Selection
 DEVICE = os.getenv("DEVICE", "cuda" if os.getenv("CUDA_VISIBLE_DEVICES") else "cpu")

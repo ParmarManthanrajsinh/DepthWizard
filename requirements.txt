@@ -10,11 +10,9 @@ pydantic>=2.7.0
 numpy>=1.26.0,<2.2.0
 scipy>=1.13.0
 pillow>=10.3.0
+rasterio>=1.3.10
 
-# 3D Mesh Generation & Decimation
-trimesh>=4.4.0
-
-# Optional ML & Geospatial Dependencies (installed per team role)
-# torch>=2.2.0
-# transformers>=4.41.0
-# rasterio>=1.3.10
+# Monocular Depth Estimation Backbone (Depth Anything V2)
+torch>=2.2.0
+torchvision>=0.17.0
+transformers>=4.41.0

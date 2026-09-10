@@ -15,8 +15,23 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 def init_db() -> None:
-    """Create tables if they do not already exist."""
+    """Create tables if they do not already exist, and ensure schema columns match."""
     Base.metadata.create_all(bind=engine)
+
+    # Lightweight SQLite schema auto-migration
+    if "sqlite" in DATABASE_URL:
+        from sqlalchemy import text
+        with engine.begin() as conn:
+            result = conn.execute(text("PRAGMA table_info(jobs)")).fetchall()
+            existing_cols = {row[1] for row in result}
+            new_cols = [
+                ("calibration_source", "VARCHAR(128) DEFAULT 'Unknown'"),
+                ("is_synthetic_calibration", "BOOLEAN DEFAULT 0"),
+                ("model_name", "VARCHAR(128) DEFAULT 'Depth Anything V2'"),
+            ]
+            for col_name, col_type in new_cols:
+                if col_name not in existing_cols:
+                    conn.execute(text(f"ALTER TABLE jobs ADD COLUMN {col_name} {col_type}"))
 
 
 def get_db() -> Generator[Session, None, None]:

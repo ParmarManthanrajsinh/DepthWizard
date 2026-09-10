@@ -3,81 +3,122 @@
 #include <algorithm>
 #include <cmath>
 
-FreeFlyCamera::FreeFlyCamera() 
-    : moveSpeed(35.0f), lookSpeed(0.003f), pitch(-0.28f), yaw(3.14159265f) {
-    camera = { 0 };
-    camera.up = Vector3{ 0.0f, 1.0f, 0.0f };
-    camera.fovy = 60.0f;
-    camera.projection = CAMERA_PERSPECTIVE;
+FFreeFlyCamera::FFreeFlyCamera()
+    : MoveSpeed(35.0f)
+    , LookSpeed(0.003f)
+    , Pitch(-0.28f)
+    , Yaw(3.14159265f)
+{
+    Camera = { 0 };
+    Camera.position = Vector3{ 0.0f, 45.0f, 85.0f };
+    Camera.target = Vector3{ 0.0f, 20.0f, 0.0f };
+    Camera.up = Vector3{ 0.0f, 1.0f, 0.0f };
+    Camera.fovy = 60.0f;
+    Camera.projection = CAMERA_PERSPECTIVE;
 }
 
-void FreeFlyCamera::Init(Vector3 startPos, Vector3 targetPos) {
-    camera.position = startPos;
-    camera.target = targetPos;
+void FFreeFlyCamera::Initialize(const Vector3& InStartPos, const Vector3& InTargetPos)
+{
+    Camera.position = InStartPos;
+    Camera.target = InTargetPos;
 
-    // Compute pitch and yaw from startPos towards targetPos so camera looks directly at terrain
-    Vector3 delta = Vector3Subtract(targetPos, startPos);
-    float distXZ = sqrtf(delta.x * delta.x + delta.z * delta.z);
-    if (distXZ > 0.001f) {
-        pitch = atan2f(delta.y, distXZ);
-        yaw = atan2f(delta.x, delta.z);
-    } else {
-        pitch = -0.28f;
-        yaw = 3.14159265f;
+    // Compute pitch and yaw from start position towards target position
+    const Vector3 Delta = Vector3Subtract(InTargetPos, InStartPos);
+    const float DistXZ = sqrtf(Delta.x * Delta.x + Delta.z * Delta.z);
+
+    if (DistXZ > 0.001f)
+    {
+        Pitch = atan2f(Delta.y, DistXZ);
+        Yaw = atan2f(Delta.x, Delta.z);
+    }
+    else
+    {
+        Pitch = -0.28f;
+        Yaw = 3.14159265f;
     }
 }
 
-void FreeFlyCamera::Update(float deltaTime) {
+void FFreeFlyCamera::Reset()
+{
+    Initialize(Vector3{ 0.0f, 45.0f, 85.0f }, Vector3{ 0.0f, 20.0f, 0.0f });
+}
+
+void FFreeFlyCamera::Update(float InDeltaTime)
+{
     // Mouse look when right mouse or left mouse is held
-    if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) || IsMouseButtonDown(MOUSE_BUTTON_RIGHT)) {
-        Vector2 mouseDelta = GetMouseDelta();
-        yaw -= mouseDelta.x * lookSpeed;
-        pitch -= mouseDelta.y * lookSpeed;
-        pitch = std::clamp(pitch, -1.5f, 1.5f);
+    if (IsMouseButtonDown(MOUSE_BUTTON_LEFT) || IsMouseButtonDown(MOUSE_BUTTON_RIGHT))
+    {
+        const Vector2 MouseDelta = GetMouseDelta();
+        Yaw -= MouseDelta.x * LookSpeed;
+        Pitch -= MouseDelta.y * LookSpeed;
+        Pitch = std::clamp(Pitch, -1.5f, 1.5f);
     }
 
     // Direction vectors from pitch and yaw
-    Vector3 forward = {
-        cosf(pitch) * sinf(yaw),
-        sinf(pitch),
-        cosf(pitch) * cosf(yaw)
+    const Vector3 Forward = {
+        cosf(Pitch) * sinf(Yaw),
+        sinf(Pitch),
+        cosf(Pitch) * cosf(Yaw)
     };
 
-    // Right vector perpendicular to forward and world up in XZ plane (fixes inverted A/D controls)
-    Vector3 right = { -forward.z, 0.0f, forward.x };
-    float rLen = sqrtf(right.x * right.x + right.z * right.z);
-    if (rLen > 0.001f) {
-        right.x /= rLen;
-        right.z /= rLen;
-    } else {
-        right = { 1.0f, 0.0f, 0.0f };
+    // Right vector perpendicular to forward and world up in XZ plane
+    Vector3 Right = { -Forward.z, 0.0f, Forward.x };
+    const float RightLen = sqrtf(Right.x * Right.x + Right.z * Right.z);
+    if (RightLen > 0.001f)
+    {
+        Right.x /= RightLen;
+        Right.z /= RightLen;
     }
-    Vector3 up = { 0.0f, 1.0f, 0.0f };
+    else
+    {
+        Right = { 1.0f, 0.0f, 0.0f };
+    }
+    const Vector3 Up = { 0.0f, 1.0f, 0.0f };
 
-    float speed = moveSpeed;
-    if (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT)) {
-        speed *= 2.5f; // Turbo boost
+    float CurrentSpeed = MoveSpeed;
+    if (IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT))
+    {
+        CurrentSpeed *= 2.5f; // Turbo boost
     }
 
-    Vector3 movement = { 0 };
+    Vector3 Movement = { 0 };
 
-    if (IsKeyDown(KEY_W) || IsKeyDown(KEY_UP))    movement = Vector3Add(movement, forward);
-    if (IsKeyDown(KEY_S) || IsKeyDown(KEY_DOWN))  movement = Vector3Subtract(movement, forward);
-    if (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT)) movement = Vector3Add(movement, right);
-    if (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT))  movement = Vector3Subtract(movement, right);
-    if (IsKeyDown(KEY_SPACE))                      movement = Vector3Add(movement, up);
-    if (IsKeyDown(KEY_C) || IsKeyDown(KEY_LEFT_CONTROL)) movement = Vector3Subtract(movement, up);
+    if (IsKeyDown(KEY_W) || IsKeyDown(KEY_UP))
+    {
+        Movement = Vector3Add(Movement, Forward);
+    }
+    if (IsKeyDown(KEY_S) || IsKeyDown(KEY_DOWN))
+    {
+        Movement = Vector3Subtract(Movement, Forward);
+    }
+    if (IsKeyDown(KEY_D) || IsKeyDown(KEY_RIGHT))
+    {
+        Movement = Vector3Add(Movement, Right);
+    }
+    if (IsKeyDown(KEY_A) || IsKeyDown(KEY_LEFT))
+    {
+        Movement = Vector3Subtract(Movement, Right);
+    }
+    if (IsKeyDown(KEY_SPACE))
+    {
+        Movement = Vector3Add(Movement, Up);
+    }
+    if (IsKeyDown(KEY_C) || IsKeyDown(KEY_LEFT_CONTROL))
+    {
+        Movement = Vector3Subtract(Movement, Up);
+    }
 
-    if (Vector3Length(movement) > 0.0f) {
-        movement = Vector3Normalize(movement);
-        camera.position = Vector3Add(camera.position, Vector3Scale(movement, speed * deltaTime));
+    if (Vector3Length(Movement) > 0.0f)
+    {
+        Movement = Vector3Normalize(Movement);
+        Camera.position = Vector3Add(Camera.position, Vector3Scale(Movement, CurrentSpeed * InDeltaTime));
     }
 
     // Camera height clamp (keep above minimum terrain ground plane)
-    if (camera.position.y < 2.0f) {
-        camera.position.y = 2.0f;
+    if (Camera.position.y < 2.0f)
+    {
+        Camera.position.y = 2.0f;
     }
 
-    camera.target = Vector3Add(camera.position, forward);
+    Camera.target = Vector3Add(Camera.position, Forward);
 }
-

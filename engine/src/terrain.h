@@ -1,19 +1,51 @@
 #pragma once
+
 #include "raylib.h"
-#include <string>
+#include <string_view>
 
-class TerrainRenderer {
+/**
+ * Procedural and glTF terrain mesh renderer with directional hillshade shader.
+ * Follows Unreal Engine naming standards and conventions.
+ */
+class FTerrainRenderer
+{
 public:
-    Model model;
-    Shader hillshadeShader;
-    bool isLoaded;
-    bool wireframe;
+    Model TerrainModel;
+    Shader HillshadeShader;
+    bool bIsLoaded;
+    bool bWireframeMode;
 
-    TerrainRenderer();
-    ~TerrainRenderer();
+    FTerrainRenderer();
+    ~FTerrainRenderer();
 
-    bool Load(const std::string& filepath);
+    /**
+     * Loads a 3D terrain model (glTF/GLB/OBJ) from the specified path.
+     * 
+     * @param InFilePath Virtual or physical filesystem path to the model file.
+     * @return True if model loaded successfully with valid mesh count.
+     */
+    bool Load(std::string_view InFilePath);
+
+    /**
+     * Renders the terrain mesh with current shading or wireframe mode.
+     */
     void Draw();
+
+    /**
+     * Releases GPU buffers and shader programs.
+     */
     void Unload();
-    float GetElevationAt(Vector3 position);
+
+    /**
+     * Computes scaled elevation in meters at the given world position.
+     * 
+     * @param InPosition Camera or sample world position.
+     * @return Scaled elevation in meters.
+     */
+    float GetElevationAt(const Vector3& InPosition) const;
+
+    /**
+     * Toggles wireframe rendering mode.
+     */
+    void ToggleWireframe();
 };

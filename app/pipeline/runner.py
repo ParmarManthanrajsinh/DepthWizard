@@ -51,6 +51,13 @@ def run_pipeline_for_job(job_id: str) -> None:
         with Image.open(input_path) as raw_img:
             rgb_img = raw_img.convert("RGB")
             estimator = get_depth_estimator()
+            model_label = (
+                "Depth Anything V2 (PyTorch)"
+                if estimator.__class__.__name__ == "DepthAnythingV2Estimator"
+                else "MockDepthEstimator (Synthetic Heuristic)"
+            )
+            job.model_name = model_label
+            db.commit()
             relative_depth = estimator.estimate(rgb_img)
 
         # Step 3: Scale Calibration (SRTM / GCP / Metric Fit)
@@ -81,6 +88,8 @@ def run_pipeline_for_job(job_id: str) -> None:
         job.correlation = calib.correlation
         job.elevation_min = calib.elevation_min
         job.elevation_max = calib.elevation_max
+        job.calibration_source = calib.calibration_source
+        job.is_synthetic_calibration = calib.is_synthetic
         db.commit()
 
         # Step 4: Export DSM GeoTIFF and Colorized Hillshade Preview

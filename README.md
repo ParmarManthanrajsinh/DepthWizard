@@ -59,8 +59,9 @@ Progress tracked against the 50/50 judging split: **50% Metric DSM Accuracy** + 
   - [x] Normalization and depth-to-height inversion pipeline.
   - [x] GeoTIFF parsing via `rasterio` (CRS detection, affine geotransform, bounding box extraction).
   - [x] Least-squares affine scale/offset regression ($h_{metric} = a \cdot d_{rel} + b$) with RMSE, MAE, and Pearson correlation ($r$) statistics.
+  - [x] Ground Control Points (GCPs) Survey Calibration: End-to-end support for sparse ground survey elevation points (CSV upload supporting pixel coordinates (x,y) or geographic (lat,lon) with least-squares scale/offset calibration).
   - [x] Dual output paths: Non-georeferenced relative rDSM vs. georeferenced metric DSM GeoTIFF export.
-  - [x] Live DEM query & caching: Automatic fetching of SRTM-30m tiles via OpenTopography API with disk caching (`data/cache/dem/`) and coarse baseline fallback.
+  - [x] Live DEM query & caching: Automatic fetching of SRTM-30m tiles via OpenTopography API (with `OPENTOPOGRAPHY_API_KEY` support), disk caching (`data/cache/dem/`), and explicit synthetic fallback warnings.
   - [x] 2D color-relief preview generation (`matplotlib.cm.terrain`).
   - [x] Synthetic sample benchmark generators (`sample_himalayas.tif`, `sample_crater.png`).
 
@@ -83,6 +84,7 @@ Progress tracked against the 50/50 judging split: **50% Metric DSM Accuracy** + 
 - [x] **Module 4: Web Orchestration & Interface**
   - [x] Single monorepo architecture: one FastAPI process, zero microservice sprawl.
   - [x] Server-driven reactive UI using HTMX & Jinja2 partials (`upload_form.html`, `job_status.html`, `job_result.html`).
+  - [x] Real-time telemetry badges: Active depth model ("Depth Anything V2 [PyTorch]" vs "Mock Dev Mode") and calibration accuracy provenance ("Verified Ground Truth" vs "Synthetic Baseline").
   - [x] Async background worker execution queue with SQLite persistence via SQLAlchemy.
   - [x] Clean, aerospace telemetry design system locked in `design.md` with Hallmark anti-slop rules.
   - [x] Full test suite with automated pipeline, API, and WebAssembly viewer testing (`pytest tests -v`).
@@ -92,7 +94,6 @@ Progress tracked against the 50/50 judging split: **50% Metric DSM Accuracy** + 
 ### Future Implementation (Remaining Roadmap)
 
 - [ ] **Module 1: Elevation Pipeline Scaling & Ground Truthing**
-  - [ ] **Ground Control Points (GCPs)**: Support manual or CSV-based GCP entry for sub-pixel ground elevation calibration.
   - [ ] **Satellite-Specific Model Tuning**: Benchmark fine-tuned ZoeDepth and satellite-specialized Depth Anything checkpoints.
   - [ ] **Large Scene Tiling**: Cloud Optimized GeoTIFF (COG) windowed reading and chunked inference for gigabyte-scale scenes.
 

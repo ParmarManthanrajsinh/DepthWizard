@@ -1,15 +1,39 @@
 #pragma once
+
 #include "raylib.h"
 
-class FreeFlyCamera {
+/**
+ * Free-flying 6-DOF inspection camera for 3D terrain visualization.
+ * Conforms to Unreal Engine naming conventions and standards.
+ */
+class FFreeFlyCamera
+{
 public:
-    Camera3D camera;
-    float moveSpeed;
-    float lookSpeed;
-    float pitch;
-    float yaw;
+    Camera3D Camera;
+    float MoveSpeed;
+    float LookSpeed;
+    float Pitch;
+    float Yaw;
 
-    FreeFlyCamera();
-    void Init(Vector3 startPos, Vector3 targetPos);
-    void Update(float deltaTime);
+    FFreeFlyCamera();
+
+    /**
+     * Initializes camera transform and orientation looking towards target.
+     * 
+     * @param InStartPos Initial eye position.
+     * @param InTargetPos Target focus point.
+     */
+    void Initialize(const Vector3& InStartPos, const Vector3& InTargetPos);
+
+    /**
+     * Advances camera input handling and positional integration.
+     * 
+     * @param InDeltaTime Frame elapsed time in seconds.
+     */
+    void Update(float InDeltaTime);
+
+    /**
+     * Resets camera to standard overhead perspective.
+     */
+    void Reset();
 };

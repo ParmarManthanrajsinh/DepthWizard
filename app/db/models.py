@@ -37,6 +37,9 @@ class Job(Base):
     correlation = Column(Float, nullable=True)
     elevation_min = Column(Float, nullable=True)
     elevation_max = Column(Float, nullable=True)
+    calibration_source = Column(String(128), default="Unknown")
+    is_synthetic_calibration = Column(Boolean, default=False)
+    model_name = Column(String(128), default="Depth Anything V2")
 
     # Generated Artifacts
     dsm_path = Column(String(512), nullable=True)
@@ -59,12 +62,15 @@ class Job(Base):
             "status": self.status,
             "progress": self.progress,
             "current_step": self.current_step,
+            "model_name": self.model_name,
             "metrics": {
                 "rmse": round(self.rmse, 3) if self.rmse is not None else None,
                 "mae": round(self.mae, 3) if self.mae is not None else None,
                 "correlation": round(self.correlation, 3) if self.correlation is not None else None,
                 "elevation_min": round(self.elevation_min, 2) if self.elevation_min is not None else None,
                 "elevation_max": round(self.elevation_max, 2) if self.elevation_max is not None else None,
+                "calibration_source": self.calibration_source,
+                "is_synthetic": self.is_synthetic_calibration,
             },
             "artifacts": {
                 "dsm_url": f"/api/jobs/{self.id}/dsm" if self.dsm_path else None,

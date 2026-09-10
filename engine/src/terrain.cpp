@@ -1,5 +1,6 @@
 #include "terrain.h"
-#include <iostream>
+#include <string>
+#include <cstdint>
 
 #if defined(PLATFORM_WEB)
     #define GLSL_VERSION            100
@@ -84,69 +85,102 @@ static const char* kTerrainFS =
     "}\n";
 #endif
 
-TerrainRenderer::TerrainRenderer() : isLoaded(false), wireframe(false) {
-    model = { 0 };
-    hillshadeShader = { 0 };
+FTerrainRenderer::FTerrainRenderer()
+    : TerrainModel({ 0 })
+    , HillshadeShader({ 0 })
+    , bIsLoaded(false)
+    , bWireframeMode(false)
+{
 }
 
-TerrainRenderer::~TerrainRenderer() {
+FTerrainRenderer::~FTerrainRenderer()
+{
     Unload();
 }
 
-bool TerrainRenderer::Load(const std::string& filepath) {
+bool FTerrainRenderer::Load(std::string_view InFilePath)
+{
     Unload();
-    if (FileExists(filepath.c_str())) {
-        model = LoadModel(filepath.c_str());
-        isLoaded = (model.meshCount > 0);
-        if (isLoaded) {
-            if (hillshadeShader.id == 0) {
-                hillshadeShader = LoadShaderFromMemory(kTerrainVS, kTerrainFS);
+    if (InFilePath.empty())
+    {
+        return false;
+    }
+
+    // Raylib C API requires null-terminated C-string
+    const std::string PathString(InFilePath);
+    if (FileExists(PathString.c_str()))
+    {
+        TerrainModel = LoadModel(PathString.c_str());
+        bIsLoaded = (TerrainModel.meshCount > 0);
+        if (bIsLoaded)
+        {
+            if (HillshadeShader.id == 0)
+            {
+                HillshadeShader = LoadShaderFromMemory(kTerrainVS, kTerrainFS);
             }
-            if (hillshadeShader.id > 0) {
-                for (int i = 0; i < model.materialCount; i++) {
-                    model.materials[i].shader = hillshadeShader;
+            if (HillshadeShader.id > 0)
+            {
+                for (int32_t Index = 0; Index < TerrainModel.materialCount; ++Index)
+                {
+                    TerrainModel.materials[Index].shader = HillshadeShader;
                 }
             }
         }
-        return isLoaded;
+        return bIsLoaded;
     }
     return false;
 }
 
-void TerrainRenderer::Unload() {
-    if (isLoaded) {
-        UnloadModel(model);
-        isLoaded = false;
+void FTerrainRenderer::Unload()
+{
+    if (bIsLoaded)
+    {
+        UnloadModel(TerrainModel);
+        bIsLoaded = false;
     }
-    if (hillshadeShader.id > 0) {
-        UnloadShader(hillshadeShader);
-        hillshadeShader.id = 0;
+    if (HillshadeShader.id > 0)
+    {
+        UnloadShader(HillshadeShader);
+        HillshadeShader.id = 0;
     }
 }
 
-void TerrainRenderer::Draw() {
-    if (!isLoaded) return;
-    
-    Vector3 position = { 0.0f, 0.0f, 0.0f };
-    if (wireframe) {
+void FTerrainRenderer::Draw()
+{
+    if (!bIsLoaded)
+    {
+        return;
+    }
+
+    const Vector3 Position = { 0.0f, 0.0f, 0.0f };
+    if (bWireframeMode)
+    {
         // In wireframe mode, temporarily swap to default shader so pure Signal Red lines render crisply
-        Shader savedShader = model.materials[0].shader;
-        Shader defaultShader = LoadMaterialDefault().shader;
-        for (int i = 0; i < model.materialCount; i++) {
-            model.materials[i].shader = defaultShader;
+        const Shader SavedShader = TerrainModel.materials[0].shader;
+        const Shader DefaultShader = LoadMaterialDefault().shader;
+        for (int32_t Index = 0; Index < TerrainModel.materialCount; ++Index)
+        {
+            TerrainModel.materials[Index].shader = DefaultShader;
         }
-        DrawModelWires(model, position, 1.0f, Color{ 255, 51, 51, 255 });
-        for (int i = 0; i < model.materialCount; i++) {
-            model.materials[i].shader = savedShader;
+        DrawModelWires(TerrainModel, Position, 1.0f, Color{ 255, 51, 51, 255 });
+        for (int32_t Index = 0; Index < TerrainModel.materialCount; ++Index)
+        {
+            TerrainModel.materials[Index].shader = SavedShader;
         }
-    } else {
+    }
+    else
+    {
         // Directional hillshaded surface
-        DrawModel(model, position, 1.0f, WHITE);
+        DrawModel(TerrainModel, Position, 1.0f, WHITE);
     }
 }
 
-float TerrainRenderer::GetElevationAt(Vector3 position) {
-    return position.y * 10.0f;
+float FTerrainRenderer::GetElevationAt(const Vector3& InPosition) const
+{
+    return InPosition.y * 10.0f;
 }
 
-
+void FTerrainRenderer::ToggleWireframe()
+{
+    bWireframeMode = !bWireframeMode;
+}
