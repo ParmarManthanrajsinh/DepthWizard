@@ -28,7 +28,7 @@ One monorepo, one deployable service — no separate backend/frontend hosts:
                      │  ┌───────────────┐   ┌──────────────────┐   │
                      │  │ static/viewer/│   │  job metadata    │   │
                      │  │ raylib→WASM   │   │  (SQLite)        │   │
-                     │  │ + WebGL fallbk│   └──────────────────┘   │
+                     │  │ (C++20/WebGL2)│   └──────────────────┘   │
                      │  └───────────────┘                          │
                      └─────────────────────────────────────────────┘
 ```
@@ -162,7 +162,7 @@ SIH/
 │   └── static/
 │       ├── css/style.css         # Manifesto responsive CSS design system
 │       ├── js/app.js             # Drag-and-drop & htmx helpers
-│       └── viewer/               # 3D Flythrough runtime (Raylib WASM + WebGL fallback)
+│       └── viewer/               # 3D Flythrough runtime (Raylib 6.0 WASM engine)
 ├── engine/                       # Module 3: Raylib / C++ Engine Source
 │   ├── CMakeLists.txt            # Native desktop build
 │   ├── build_wasm.bat            # Windows Emscripten compile script
@@ -213,7 +213,7 @@ SIH/
   .\build_wasm.bat    # or ./build_wasm.sh on Unix
   ```
   This compiles directly into `app/static/viewer/raylib_viewer.wasm`.
-- Note: If Emscripten is not compiled yet, the web viewer automatically runs using the high-performance WebGL fallback viewer in `app/static/viewer/three_fallback.js`.
+- Standalone WebAssembly: Raylib 6.0 engine compiles directly to `app/static/viewer/raylib_viewer.js` and `.wasm`. Pre-compiled binaries are bundled in the repository for zero-setup execution.
 
 ### Module 4: UI & API (`app/templates/`, `app/routes/`)
 - Uses **htmx**: No Node.js build step needed. Forms submit via `hx-post="/api/jobs"`, and progress updates via polling `hx-get="/jobs/{id}/status"`.

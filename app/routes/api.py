@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 import shutil
 import uuid
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -22,6 +22,7 @@ async def create_job(
     request: Request,
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    gcp_file: Optional[UploadFile] = File(None),
     db: Session = Depends(get_db)
 ):
     """
@@ -35,6 +36,12 @@ async def create_job(
     # Save uploaded file
     with open(dest_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
+
+    # Save optional GCP CSV file if supplied
+    if gcp_file and gcp_file.filename:
+        gcp_dest = UPLOADS_DIR / f"{job_id}_gcps.csv"
+        with open(gcp_dest, "wb") as buffer:
+            shutil.copyfileobj(gcp_file.file, buffer)
 
     # Create job in database
     job = Job(

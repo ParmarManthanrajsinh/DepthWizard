@@ -3,7 +3,7 @@ import logging
 from pathlib import Path
 from PIL import Image
 
-from app.config import OUTPUTS_DIR
+from app.config import OUTPUTS_DIR, UPLOADS_DIR
 from app.db.models import Job, JobStatus
 from app.db.session import SessionLocal
 from app.pipeline.calibration import calibrate_elevation
@@ -53,15 +53,27 @@ def run_pipeline_for_job(job_id: str) -> None:
             estimator = get_depth_estimator()
             relative_depth = estimator.estimate(rgb_img)
 
-        # Step 3: Scale Calibration (SRTM / Metric Fit)
+        # Step 3: Scale Calibration (SRTM / GCP / Metric Fit)
         job.progress = 65
-        job.current_step = "Calibrating elevation scale against reference DEM..."
+        job.current_step = "Calibrating elevation scale against reference DEM or GCPs..."
         db.commit()
+
+        # Check for optional Ground Control Points (GCPs) file
+        gcp_path = UPLOADS_DIR / f"{job_id}_gcps.csv"
+        gcps = None
+        if gcp_path.exists():
+            from app.pipeline.calibration import parse_gcp_csv
+            try:
+                gcps = parse_gcp_csv(gcp_path.read_text(encoding="utf-8"))
+                logger.info(f"Loaded {len(gcps)} GCP points from {gcp_path.name}")
+            except Exception as ex:
+                logger.warning(f"Failed to parse GCP file {gcp_path}: {ex}")
 
         calib = calibrate_elevation(
             relative_depth=relative_depth,
             is_georeferenced=is_geo,
             bounds=bounds,
+            gcps=gcps,
         )
 
         job.rmse = calib.rmse

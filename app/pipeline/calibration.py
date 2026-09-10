@@ -107,7 +107,7 @@ def fit_linear_scale_offset(
     x_clean = x[valid_mask]
     y_clean = y[valid_mask]
 
-    if len(x_clean) < 4:
+    if len(x_clean) < 2:
         logger.warning("Insufficient valid sample points for calibration fit.")
         return 100.0, 0.0, 0.0, 0.0, 1.0
 
@@ -127,26 +127,124 @@ def fit_linear_scale_offset(
 
     # Pearson correlation coefficient
     if np.std(predictions) > 1e-6 and np.std(y_clean) > 1e-6:
-        correlation = float(np.corrcoef(predictions, y_clean)[0, 1])
+        corr_val = float(np.corrcoef(predictions, y_clean)[0, 1])
+        correlation = corr_val if np.isfinite(corr_val) else 1.0
     else:
         correlation = 1.0
 
     return float(scale), float(offset), rmse, mae, correlation
 
 
+def parse_gcp_csv(csv_content: str) -> list[Dict[str, float]]:
+    """
+    Parse Ground Control Points (GCPs) from CSV text.
+    Accepts headers: (x, y, elevation), (pixel_x, pixel_y, elevation/z), or (lat, lon, elevation/z).
+    """
+    import csv
+    import io
+
+    gcps = []
+    reader = csv.DictReader(io.StringIO(csv_content.strip()))
+    for row in reader:
+        # Normalize keys to lowercase stripped
+        item = {k.strip().lower(): float(v.strip()) for k, v in row.items() if v.strip()}
+        if item:
+            gcps.append(item)
+    return gcps
+
+
+def calibrate_with_gcps(
+    relative_depth: np.ndarray,
+    gcps: list[Dict[str, Any]],
+    bounds: Optional[Dict[str, Any]] = None
+) -> Optional[CalibrationResult]:
+    """
+    Calibrate relative depth map using sparse Ground Control Points (GCPs).
+    Supports pixel coordinates (pixel_x, pixel_y) or geographic (lat, lon) with bounds.
+    """
+    h, w = relative_depth.shape
+    d_norm = relative_depth.astype(np.float32)
+
+    rel_samples = []
+    ref_elevations = []
+
+    for gcp in gcps:
+        elev = gcp.get("elevation", gcp.get("z", gcp.get("h")))
+        if elev is None:
+            continue
+
+        px = None
+        py = None
+
+        if "pixel_x" in gcp and "pixel_y" in gcp:
+            px = float(gcp["pixel_x"])
+            py = float(gcp["pixel_y"])
+        elif "x" in gcp and "y" in gcp and not ("lat" in gcp or "lon" in gcp):
+            px = float(gcp["x"])
+            py = float(gcp["y"])
+        elif ("lat" in gcp or "latitude" in gcp) and ("lon" in gcp or "longitude" in gcp) and bounds:
+            lon = float(gcp.get("lon", gcp.get("longitude", 0)))
+            lat = float(gcp.get("lat", gcp.get("latitude", 0)))
+            span_x = bounds["right"] - bounds["left"]
+            span_y = bounds["top"] - bounds["bottom"]
+            if abs(span_x) > 1e-8 and abs(span_y) > 1e-8:
+                px = ((lon - bounds["left"]) / span_x) * (w - 1)
+                py = ((bounds["top"] - lat) / span_y) * (h - 1)
+
+        if px is not None and py is not None:
+            c = int(np.clip(round(px), 0, w - 1))
+            r = int(np.clip(round(py), 0, h - 1))
+            rel_samples.append(float(d_norm[r, c]))
+            ref_elevations.append(float(elev))
+
+    if len(rel_samples) < 2:
+        logger.warning("Insufficient valid GCP coordinates to perform metric calibration (need >= 2).")
+        return None
+
+    x_arr = np.array(rel_samples, dtype=np.float32)
+    y_arr = np.array(ref_elevations, dtype=np.float32)
+
+    scale, offset, rmse, mae, corr = fit_linear_scale_offset(x_arr, y_arr)
+    calibrated = (scale * d_norm + offset).astype(np.float32)
+
+    logger.info(
+        f"GCP Calibration Complete (N={len(rel_samples)} points): "
+        f"scale={scale:.2f}, offset={offset:.2f}m, RMSE={rmse:.2f}m, MAE={mae:.2f}m, Corr={corr:.3f}"
+    )
+
+    return CalibrationResult(
+        calibrated_elevation=calibrated,
+        rmse=rmse,
+        mae=mae,
+        correlation=corr,
+        elevation_min=float(calibrated.min()),
+        elevation_max=float(calibrated.max()),
+        scale=scale,
+        offset=offset
+    )
+
+
 def calibrate_elevation(
     relative_depth: np.ndarray,
     is_georeferenced: bool,
     bounds: Optional[Dict[str, Any]] = None,
-    reference_dem: Optional[np.ndarray] = None
+    reference_dem: Optional[np.ndarray] = None,
+    gcps: Optional[list[Dict[str, Any]]] = None
 ) -> CalibrationResult:
     """
     Calibrate relative depth map into metric elevation.
+    - If GCPs provided: regresses against sparse Ground Control Points.
     - If georeferenced: regresses against reference DEM, cached SRTM-30m tile, or baseline.
     - If non-georeferenced: scales to standard relative 0-100m heightfield.
     """
     h, w = relative_depth.shape
     d_norm = relative_depth.astype(np.float32)
+
+    # Priority 1: Ground Control Points (GCPs) calibration
+    if gcps:
+        gcp_res = calibrate_with_gcps(d_norm, gcps, bounds=bounds)
+        if gcp_res is not None:
+            return gcp_res
 
     if not is_georeferenced:
         # Non-georeferenced mode: Relative Digital Surface Model (rDSM)

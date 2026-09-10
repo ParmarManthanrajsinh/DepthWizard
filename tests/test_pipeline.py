@@ -120,6 +120,25 @@ class TestElevationPipeline(unittest.TestCase):
             self.assertTrue(dsm_path.exists())
             self.assertTrue(preview_path.exists())
 
+    def test_gcp_calibration_and_csv_parsing(self):
+        from app.pipeline.calibration import parse_gcp_csv
+        csv_data = """pixel_x,pixel_y,elevation
+10,10,500.0
+50,50,1200.0
+80,80,1800.0
+"""
+        gcps = parse_gcp_csv(csv_data)
+        self.assertEqual(len(gcps), 3)
+        self.assertEqual(gcps[0]["elevation"], 500.0)
+
+        rel_depth = np.linspace(0.1, 0.9, 100 * 100).reshape((100, 100)).astype(np.float32)
+        res = calibrate_elevation(rel_depth, is_georeferenced=False, gcps=gcps)
+        self.assertIsNotNone(res.rmse)
+        self.assertIsNotNone(res.mae)
+        self.assertIsNotNone(res.correlation)
+        self.assertGreater(res.elevation_max, res.elevation_min)
+        self.assertGreater(res.correlation, 0.95)
+
 
 if __name__ == "__main__":
     unittest.main()

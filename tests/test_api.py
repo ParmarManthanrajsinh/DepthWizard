@@ -87,6 +87,41 @@ class TestApiEndpoints(unittest.TestCase):
         self.assertNotIn("three_fallback.js", resp.text)
 
 
+    def test_upload_with_gcp_csv(self):
+        # Create small test image buffer
+        img = Image.new("RGB", (64, 64), color=(90, 130, 170))
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        buf.seek(0)
+
+        # Create GCP CSV buffer
+        gcp_csv = "pixel_x,pixel_y,elevation\n10,10,450.0\n30,30,850.0\n50,50,1250.0\n"
+        gcp_buf = io.BytesIO(gcp_csv.encode("utf-8"))
+
+        # Upload image + GCP file
+        resp = self.client.post(
+            "/api/jobs",
+            files={
+                "file": ("test_gcp_scene.png", buf, "image/png"),
+                "gcp_file": ("gcps.csv", gcp_buf, "text/csv"),
+            }
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        job_id = data["id"]
+        self.assertIsNotNone(job_id)
+
+        # Run pipeline
+        run_pipeline_for_job(job_id)
+
+        job_resp = self.client.get(f"/api/jobs/{job_id}")
+        self.assertEqual(job_resp.status_code, 200)
+        job_data = job_resp.json()
+        self.assertEqual(job_data["status"], "COMPLETED")
+        self.assertIsNotNone(job_data["metrics"]["rmse"])
+        self.assertIsNotNone(job_data["metrics"]["correlation"])
+
+
 if __name__ == "__main__":
     unittest.main()
 
