@@ -1,9 +1,10 @@
 #include "camera.h"
 #include "raymath.h"
 #include <algorithm>
+#include <cmath>
 
 FreeFlyCamera::FreeFlyCamera() 
-    : moveSpeed(35.0f), lookSpeed(0.003f), pitch(-0.35f), yaw(0.0f) {
+    : moveSpeed(35.0f), lookSpeed(0.003f), pitch(-0.28f), yaw(3.14159265f) {
     camera = { 0 };
     camera.up = Vector3{ 0.0f, 1.0f, 0.0f };
     camera.fovy = 60.0f;
@@ -13,6 +14,17 @@ FreeFlyCamera::FreeFlyCamera()
 void FreeFlyCamera::Init(Vector3 startPos, Vector3 targetPos) {
     camera.position = startPos;
     camera.target = targetPos;
+
+    // Compute pitch and yaw from startPos towards targetPos so camera looks directly at terrain
+    Vector3 delta = Vector3Subtract(targetPos, startPos);
+    float distXZ = sqrtf(delta.x * delta.x + delta.z * delta.z);
+    if (distXZ > 0.001f) {
+        pitch = atan2f(delta.y, distXZ);
+        yaw = atan2f(delta.x, delta.z);
+    } else {
+        pitch = -0.28f;
+        yaw = 3.14159265f;
+    }
 }
 
 void FreeFlyCamera::Update(float deltaTime) {
@@ -30,11 +42,16 @@ void FreeFlyCamera::Update(float deltaTime) {
         sinf(pitch),
         cosf(pitch) * cosf(yaw)
     };
-    Vector3 right = {
-        cosf(yaw),
-        0.0f,
-        -sinf(yaw)
-    };
+
+    // Right vector perpendicular to forward and world up in XZ plane (fixes inverted A/D controls)
+    Vector3 right = { -forward.z, 0.0f, forward.x };
+    float rLen = sqrtf(right.x * right.x + right.z * right.z);
+    if (rLen > 0.001f) {
+        right.x /= rLen;
+        right.z /= rLen;
+    } else {
+        right = { 1.0f, 0.0f, 0.0f };
+    }
     Vector3 up = { 0.0f, 1.0f, 0.0f };
 
     float speed = moveSpeed;
@@ -63,3 +80,4 @@ void FreeFlyCamera::Update(float deltaTime) {
 
     camera.target = Vector3Add(camera.position, forward);
 }
+

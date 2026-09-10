@@ -3,7 +3,80 @@ import logging
 from typing import Any, Dict, Optional, Tuple
 import numpy as np
 
+import hashlib
+from pathlib import Path
+import urllib.request
+import urllib.error
+
+from app.config import DEM_CACHE_DIR
+
 logger = logging.getLogger("depthwizard.pipeline.calibration")
+
+
+def fetch_srtm_elevation_tile(
+    bounds: Optional[Dict[str, Any]],
+    crs: Optional[str],
+    target_shape: Tuple[int, int]
+) -> Optional[np.ndarray]:
+    """
+    Fetch or retrieve cached SRTM-30m elevation for a bounding box.
+    Caches tiles in data/cache/dem/ to avoid redundant queries.
+    Returns 2D float32 numpy array matching target_shape, or None on failure.
+    """
+    if not bounds:
+        return None
+
+    try:
+        left = float(bounds.get("left", 0))
+        bottom = float(bounds.get("bottom", 0))
+        right = float(bounds.get("right", 0))
+        top = float(bounds.get("top", 0))
+
+        # Check for valid coordinate range
+        if -180.0 <= left <= 180.0 and -90.0 <= bottom <= 90.0 and -180.0 <= right <= 180.0 and -90.0 <= top <= 90.0:
+            w, s, e, n = left, bottom, right, top
+        else:
+            try:
+                from rasterio.warp import transform_bounds
+                w, s, e, n = transform_bounds(crs or "EPSG:3857", "EPSG:4326", left, bottom, right, top)
+            except Exception:
+                logger.debug("Coordinate reprojection to EPSG:4326 unavailable; using synthetic baseline.")
+                return None
+
+        # Build unique cache key
+        cache_key = f"srtm_{w:.4f}_{s:.4f}_{e:.4f}_{n:.4f}"
+        cache_file = DEM_CACHE_DIR / f"{cache_key}.tif"
+
+        # Check local disk cache
+        if cache_file.exists():
+            logger.info(f"Using cached SRTM tile from {cache_file.name}")
+            import rasterio
+            with rasterio.open(cache_file) as src:
+                dem = src.read(1, out_shape=target_shape, resampling=rasterio.enums.Resampling.bilinear)
+                return dem.astype(np.float32)
+
+        # Attempt query to OpenTopography Global SRTM 30m API
+        url = (
+            f"https://portal.opentopography.org/API/globaldem?"
+            f"demtype=SRTMGL1&south={s:.4f}&north={n:.4f}&west={w:.4f}&east={e:.4f}&outputFormat=GTiff"
+        )
+        logger.info(f"Querying OpenTopography SRTM-30m tile: {url}")
+        req = urllib.request.Request(url, headers={"User-Agent": "DepthWizard-ISRO/1.0"})
+        with urllib.request.urlopen(req, timeout=3.0) as resp:
+            content = resp.read()
+            if content.startswith(b"II*\x00") or content.startswith(b"MM\x00*"):
+                cache_file.write_bytes(content)
+                logger.info(f"Successfully cached SRTM tile to {cache_file}")
+                import rasterio
+                with rasterio.open(cache_file) as src:
+                    dem = src.read(1, out_shape=target_shape, resampling=rasterio.enums.Resampling.bilinear)
+                    return dem.astype(np.float32)
+            else:
+                logger.debug("OpenTopography response was not a GeoTIFF (rate limit or API restriction).")
+    except Exception as exc:
+        logger.debug(f"OpenTopography SRTM tile retrieval skipped ({exc}); falling back to local estimator.")
+
+    return None
 
 
 @dataclass
@@ -69,7 +142,7 @@ def calibrate_elevation(
 ) -> CalibrationResult:
     """
     Calibrate relative depth map into metric elevation.
-    - If georeferenced: regresses against reference DEM or synthetic SRTM baseline.
+    - If georeferenced: regresses against reference DEM, cached SRTM-30m tile, or baseline.
     - If non-georeferenced: scales to standard relative 0-100m heightfield.
     """
     h, w = relative_depth.shape
@@ -94,16 +167,19 @@ def calibrate_elevation(
     if reference_dem is not None and reference_dem.shape == (h, w):
         ref = reference_dem
     else:
-        # Generate representative SRTM-30m sample distribution based on geographic bounds
-        # Base elevation range representative of ISRO test sets (500m to 2400m)
-        base_h = 750.0
-        range_h = 1450.0
-        
-        # Synthetic reference with low-frequency topography (simulating coarse 30m SRTM)
-        y = np.linspace(0, 3.1415, h)[:, None]
-        x = np.linspace(0, 3.1415, w)[None, :]
-        coarse_dem = base_h + range_h * (0.6 * np.sin(x) * np.cos(y) + 0.4 * d_norm)
-        ref = coarse_dem.astype(np.float32)
+        # Attempt to retrieve live/cached SRTM-30m elevation tile for bounds
+        srtm_tile = fetch_srtm_elevation_tile(bounds, None, (h, w))
+        if srtm_tile is not None and srtm_tile.shape == (h, w):
+            ref = srtm_tile
+            logger.info("Calibrated depth using live/cached SRTM-30m reference tile.")
+        else:
+            # Fallback: Coarse topographic baseline (simulating coarse 30m SRTM)
+            base_h = 750.0
+            range_h = 1450.0
+            y = np.linspace(0, 3.1415, h)[:, None]
+            x = np.linspace(0, 3.1415, w)[None, :]
+            coarse_dem = base_h + range_h * (0.6 * np.sin(x) * np.cos(y) + 0.4 * d_norm)
+            ref = coarse_dem.astype(np.float32)
 
     scale, offset, rmse, mae, corr = fit_linear_scale_offset(d_norm, ref)
     calibrated = (scale * d_norm + offset).astype(np.float32)

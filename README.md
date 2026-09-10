@@ -60,6 +60,7 @@ Progress tracked against the 50/50 judging split: **50% Metric DSM Accuracy** + 
   - [x] GeoTIFF parsing via `rasterio` (CRS detection, affine geotransform, bounding box extraction).
   - [x] Least-squares affine scale/offset regression ($h_{metric} = a \cdot d_{rel} + b$) with RMSE, MAE, and Pearson correlation ($r$) statistics.
   - [x] Dual output paths: Non-georeferenced relative rDSM vs. georeferenced metric DSM GeoTIFF export.
+  - [x] Live DEM query & caching: Automatic fetching of SRTM-30m tiles via OpenTopography API with disk caching (`data/cache/dem/`) and coarse baseline fallback.
   - [x] 2D color-relief preview generation (`matplotlib.cm.terrain`).
   - [x] Synthetic sample benchmark generators (`sample_himalayas.tif`, `sample_crater.png`).
 
@@ -67,29 +68,30 @@ Progress tracked against the 50/50 judging split: **50% Metric DSM Accuracy** + 
   - [x] Regular 2.5D heightfield triangulation grid algorithm.
   - [x] Smooth vertex normals derivation via adjacent triangle cross products.
   - [x] UV coordinate computation mapping original optical imagery onto 3D terrain surface.
+  - [x] Adaptive Curvature & Gradient Mesh Decimation: Simplifies flat regions while preserving full resolution on ridges and cliffs.
   - [x] Standalone binary glTF (`.glb`) export with embedded textures and PBR materials.
 
 - [x] **Module 3: Interactive 3D Flythrough**
-  - [x] Real-time WebGL/Three.js standalone 3D flight viewer with glTF loader.
+  - [x] Native C++ Raylib WebAssembly 3D engine (`raylib_viewer.wasm` + `raylib_viewer.js`) compiled via EMSDK.
+  - [x] Emscripten MEMFS mesh ingestion: direct streaming of `.glb` models from FastAPI into WASM VRAM.
   - [x] 6-DOF first-person flight camera (WASD lateral/forward, Space/C vertical, Shift 2.5x turbo boost, mouse drag look).
-  - [x] Live aerospace telemetry HUD overlay (camera altitude, coordinate readouts, slope pitch, spatial CRS, engine state).
+  - [x] Live aerospace telemetry HUD overlay (camera altitude, coordinate readouts, slope pitch, spatial CRS, engine state) bridged directly from C++ frame loop.
   - [x] Interactive mesh wireframe toggle mode (`X` key).
-  - [x] Raylib C++ native flythrough source structure (`engine/src/main.cpp`, `camera.cpp`, `terrain.cpp`, `CMakeLists.txt`).
-  - [x] Emscripten WASM build automation scripts (`engine/build_wasm.bat`, `engine/build_wasm.sh`).
+  - [x] Complete elimination of Three.js and all external CDN 3D libraries.
+  - [x] Cross-platform build automation (`build_wasm.ps1`, `build_wasm.bat`, `build_wasm.sh`).
 
 - [x] **Module 4: Web Orchestration & Interface**
   - [x] Single monorepo architecture: one FastAPI process, zero microservice sprawl.
   - [x] Server-driven reactive UI using HTMX & Jinja2 partials (`upload_form.html`, `job_status.html`, `job_result.html`).
   - [x] Async background worker execution queue with SQLite persistence via SQLAlchemy.
   - [x] Clean, aerospace telemetry design system locked in `design.md` with Hallmark anti-slop rules.
-  - [x] Full test suite with automated pipeline and API regression testing (`pytest tests -v`).
+  - [x] Full test suite with automated pipeline, API, and WebAssembly viewer testing (`pytest tests -v`).
 
 ---
 
 ### Future Implementation (Remaining Roadmap)
 
 - [ ] **Module 1: Elevation Pipeline Scaling & Ground Truthing**
-  - [ ] **Live DEM API Integration**: Automatic fetching of SRTM-30m tiles via OpenTopography API or `elevation` library for arbitrary user bounding boxes.
   - [ ] **Ground Control Points (GCPs)**: Support manual or CSV-based GCP entry for sub-pixel ground elevation calibration.
   - [ ] **Satellite-Specific Model Tuning**: Benchmark fine-tuned ZoeDepth and satellite-specialized Depth Anything checkpoints.
   - [ ] **Large Scene Tiling**: Cloud Optimized GeoTIFF (COG) windowed reading and chunked inference for gigabyte-scale scenes.
@@ -99,8 +101,7 @@ Progress tracked against the 50/50 judging split: **50% Metric DSM Accuracy** + 
   - [ ] **Normal Map Baking**: High-to-low poly normal map baking to retain micro-surface detail without polygon overhead.
   - [ ] **Multi-Format Export**: Alternative packaging for Wavefront OBJ + MTL bundles alongside single-file `.glb`.
 
-- [ ] **Module 3: Raylib WASM Production Build & Enhanced Navigation**
-  - [ ] **Emscripten WASM Production Binary**: Compile and link `raylib_viewer.wasm` into `app/static/viewer/` to demonstrate native engine capability.
+- [ ] **Module 3: Enhanced Flight Simulation & Topographic Shaders**
   - [ ] **Cinematic Flight Paths**: Waypoint-based automated flythrough tours and camera trajectory replay for jury demonstrations.
   - [ ] **Topographic Shader Effects**: Real-time contour lines and dynamic sun-angle directional hillshading in fragment shader.
   - [ ] **Slope Hazard Heatmap**: Visual color-coded slope overlay to assist disaster and terrain risk assessment.
@@ -154,12 +155,12 @@ SIH/
 │   │   ├── api.py                # REST endpoints (/api/jobs, /api/jobs/{id}/mesh)
 │   │   └── pages.py              # HTML routes for htmx dashboard & viewer
 │   ├── templates/
-│   │   ├── base.html             # Common layout (glassmorphic dark design)
+│   │   ├── base.html             # Common layout (Manifesto constructivist dark design)
 │   │   ├── index.html            # Main dashboard & recent jobs table
 │   │   ├── viewer.html           # Full-screen 3D flythrough page
 │   │   └── partials/             # htmx dynamic polling components
 │   └── static/
-│       ├── css/style.css         # ISRO-themed responsive CSS design system
+│       ├── css/style.css         # Manifesto responsive CSS design system
 │       ├── js/app.js             # Drag-and-drop & htmx helpers
 │       └── viewer/               # 3D Flythrough runtime (Raylib WASM + WebGL fallback)
 ├── engine/                       # Module 3: Raylib / C++ Engine Source
@@ -224,7 +225,7 @@ SIH/
 
 Run test suite:
 ```powershell
-py -3.12 -m unittest discover -s tests -v
+pytest tests -v
 ```
 
 ---

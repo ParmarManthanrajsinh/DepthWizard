@@ -10,6 +10,8 @@ OUTPUTS_DIR = DATA_DIR / "outputs"
 SAMPLES_DIR = DATA_DIR / "samples"
 STATIC_DIR = APP_DIR / "static"
 TEMPLATES_DIR = APP_DIR / "templates"
+CACHE_DIR = DATA_DIR / "cache"
+DEM_CACHE_DIR = CACHE_DIR / "dem"
 
 # Database Configuration
 DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{DATA_DIR}/depthwizard.db")
@@ -35,5 +37,5 @@ HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "8000"))
 
 # Ensure directory structure exists on import
-for path in (DATA_DIR, UPLOADS_DIR, OUTPUTS_DIR, SAMPLES_DIR):
+for path in (DATA_DIR, UPLOADS_DIR, OUTPUTS_DIR, SAMPLES_DIR, DEM_CACHE_DIR):
     path.mkdir(parents=True, exist_ok=True)

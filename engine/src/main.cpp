@@ -2,6 +2,7 @@
 #include "camera.h"
 #include "terrain.h"
 #include <string>
+#include <cmath>
 
 #ifdef PLATFORM_WEB
     #include <emscripten/emscripten.h>
@@ -13,6 +14,69 @@ static TerrainRenderer gTerrain;
 static int gScreenWidth = 1280;
 static int gScreenHeight = 720;
 static std::string gMeshPath = "data/outputs/sample_terrain.glb";
+
+extern "C" {
+#ifdef PLATFORM_WEB
+    EMSCRIPTEN_KEEPALIVE
+#endif
+    int LoadTerrainFromMemory(const char* filepath) {
+        if (!filepath) return 0;
+        bool ok = gTerrain.Load(filepath);
+        if (ok) {
+            gCamera.Init(Vector3{ 0.0f, 45.0f, 85.0f }, Vector3{ 0.0f, 20.0f, 0.0f });
+        }
+        return ok ? 1 : 0;
+    }
+
+#ifdef PLATFORM_WEB
+    EMSCRIPTEN_KEEPALIVE
+#endif
+    void ToggleWireframe() {
+        gTerrain.wireframe = !gTerrain.wireframe;
+    }
+
+#ifdef PLATFORM_WEB
+    EMSCRIPTEN_KEEPALIVE
+#endif
+    void ResetCamera() {
+        gCamera.Init(Vector3{ 0.0f, 45.0f, 85.0f }, Vector3{ 0.0f, 20.0f, 0.0f });
+    }
+
+#ifdef PLATFORM_WEB
+    EMSCRIPTEN_KEEPALIVE
+#endif
+    float GetCameraAlt() {
+        return gCamera.camera.position.y * 10.0f;
+    }
+
+#ifdef PLATFORM_WEB
+    EMSCRIPTEN_KEEPALIVE
+#endif
+    float GetCameraPosX() {
+        return gCamera.camera.position.x;
+    }
+
+#ifdef PLATFORM_WEB
+    EMSCRIPTEN_KEEPALIVE
+#endif
+    float GetCameraPosZ() {
+        return gCamera.camera.position.z;
+    }
+
+#ifdef PLATFORM_WEB
+    EMSCRIPTEN_KEEPALIVE
+#endif
+    float GetCameraPitch() {
+        return fabsf(gCamera.pitch) * (180.0f / 3.14159265f);
+    }
+
+#ifdef PLATFORM_WEB
+    EMSCRIPTEN_KEEPALIVE
+#endif
+    int GetEngineFPS() {
+        return GetFPS();
+    }
+}
 
 void UpdateDrawFrame() {
     float dt = GetFrameTime();
@@ -27,38 +91,52 @@ void UpdateDrawFrame() {
 
     // Draw
     BeginDrawing();
-    ClearBackground(Color{ 7, 9, 14, 255 });
+    ClearBackground(Color{ 10, 12, 16, 255 });
 
     BeginMode3D(gCamera.camera);
+        // Always draw spatial reference grid beneath terrain
+        DrawGrid(60, 4.0f);
+
         // Draw terrain mesh
         if (gTerrain.isLoaded) {
             gTerrain.Draw();
-        } else {
-            // Draw grid plane placeholder
-            DrawGrid(40, 2.5f);
         }
     EndMode3D();
 
-    // Telemetry HUD Overlay
+    int alt = (int)(gCamera.camera.position.y * 10.0f);
+    int posX = (int)gCamera.camera.position.x;
+    int posZ = (int)gCamera.camera.position.z;
+    int pitchDeg = (int)(fabsf(gCamera.pitch) * (180.0f / 3.14159265f));
+    int fps = GetFPS();
+
+#ifdef PLATFORM_WEB
+    // Push live telemetry directly to HTML HUD
+    EM_ASM({
+        if (window.updateWasmHUD) {
+            window.updateWasmHUD($0, $1, $2, $3, $4);
+        }
+    }, alt, posX, posZ, pitchDeg, fps);
+#else
+    // Desktop Raylib Overlay
     DrawRectangle(20, 20, 280, 160, Fade(Color{ 10, 14, 24, 255 }, 0.85f));
     DrawRectangleLines(20, 20, 280, 160, Fade(Color{ 0, 240, 255, 255 }, 0.4f));
 
     DrawText("FLYTHROUGH TELEMETRY", 35, 32, 14, Color{ 0, 240, 255, 255 });
     
-    std::string altText = "Altitude: " + std::to_string((int)(gCamera.camera.position.y * 10.0f)) + " m";
+    std::string altText = "Altitude: " + std::to_string(alt) + " m";
     DrawText(altText.c_str(), 35, 56, 13, RAYWHITE);
 
-    std::string posText = "Position: X=" + std::to_string((int)gCamera.camera.position.x) + " Z=" + std::to_string((int)gCamera.camera.position.z);
+    std::string posText = "Position: X=" + std::to_string(posX) + " Z=" + std::to_string(posZ);
     DrawText(posText.c_str(), 35, 78, 13, LIGHTGRAY);
 
-    std::string slopeText = "Pitch: " + std::to_string((int)(fabs(gCamera.pitch) * (180.0f / 3.1415f))) + " deg";
+    std::string slopeText = "Pitch: " + std::to_string(pitchDeg) + " deg";
     DrawText(slopeText.c_str(), 35, 100, 13, LIGHTGRAY);
 
-    DrawText(TextFormat("FPS: %i", GetFPS()), 35, 124, 13, Color{ 0, 230, 118, 255 });
+    DrawText(TextFormat("FPS: %i", fps), 35, 124, 13, Color{ 0, 230, 118, 255 });
 
-    // Controls reminder
     DrawRectangle(20, gScreenHeight - 65, 380, 45, Fade(Color{ 10, 14, 24, 255 }, 0.85f));
     DrawText("Controls: WASD=Fly | Space/C=Climb/Descend | X=Wireframe", 30, gScreenHeight - 52, 11, GRAY);
+#endif
 
     EndDrawing();
 }
@@ -91,3 +169,4 @@ int main(int argc, char* argv[]) {
 
     return 0;
 }
+

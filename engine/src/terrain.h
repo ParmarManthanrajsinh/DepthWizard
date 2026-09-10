@@ -5,6 +5,7 @@
 class TerrainRenderer {
 public:
     Model model;
+    Shader hillshadeShader;
     bool isLoaded;
     bool wireframe;
 

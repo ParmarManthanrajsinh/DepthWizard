@@ -43,7 +43,7 @@ class TestElevationPipeline(unittest.TestCase):
 
     def test_mesh_generation(self):
         elevation = np.zeros((32, 32), dtype=np.float32)
-        verts, norms, uvs, indices = generate_terrain_mesh(elevation, target_res=16)
+        verts, norms, uvs, indices = generate_terrain_mesh(elevation, target_res=16, adaptive_decimate=False)
 
         # 16x16 grid = 256 vertices
         self.assertEqual(len(verts), 256)
@@ -51,6 +51,37 @@ class TestElevationPipeline(unittest.TestCase):
         self.assertEqual(len(uvs), 256)
         # (16 - 1) * (16 - 1) * 2 triangles = 450 triangles
         self.assertEqual(len(indices), 450)
+
+    def test_adaptive_mesh_decimation(self):
+        # Flat plane with small central peak
+        elevation = np.zeros((32, 32), dtype=np.float32)
+        elevation[14:18, 14:18] = 50.0
+
+        # Regular triangulation
+        _, _, _, regular_indices = generate_terrain_mesh(elevation, target_res=16, adaptive_decimate=False)
+        # Adaptive decimation
+        _, _, _, decimated_indices = generate_terrain_mesh(elevation, target_res=16, adaptive_decimate=True)
+
+        self.assertEqual(len(regular_indices), 450)
+        # Adaptive decimation should reduce flat cells, producing fewer triangles
+        self.assertLess(len(decimated_indices), len(regular_indices))
+        self.assertGreater(len(decimated_indices), 200)
+
+    def test_srtm_tile_fetching_fallback(self):
+        from app.pipeline.calibration import fetch_srtm_elevation_tile
+        # Test bounds in Himalayas
+        bounds = {"left": 77.10, "bottom": 32.20, "right": 77.20, "top": 32.30}
+        tile = fetch_srtm_elevation_tile(bounds, "EPSG:4326", (16, 16))
+        # When offline or uncached, gracefully returns None
+        if tile is not None:
+            self.assertEqual(tile.shape, (16, 16))
+
+        # Test calibrate_elevation with geographic bounds
+        rel_depth = np.linspace(0.1, 0.9, 100).reshape((10, 10)).astype(np.float32)
+        res = calibrate_elevation(rel_depth, is_georeferenced=True, bounds=bounds)
+        self.assertIsNotNone(res.rmse)
+        self.assertIsNotNone(res.correlation)
+        self.assertGreater(res.elevation_max, res.elevation_min)
 
     def test_glb_export(self):
         elevation = np.random.rand(32, 32).astype(np.float32)

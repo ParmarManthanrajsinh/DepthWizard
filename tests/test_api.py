@@ -75,6 +75,18 @@ class TestApiEndpoints(unittest.TestCase):
         self.assertEqual(prev_resp.status_code, 200)
         self.assertEqual(prev_resp.headers["content-type"], "image/png")
 
+    def test_viewer_page(self):
+        resp = self.client.get("/viewer?job=test_job")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("canvas-container", resp.text)
+        self.assertIn("canvas", resp.text)
+        self.assertIn("hud-alt", resp.text)
+        self.assertIn("raylib_viewer.js", resp.text)
+        # Verify Three.js is completely absent
+        self.assertNotIn("three.min.js", resp.text)
+        self.assertNotIn("three_fallback.js", resp.text)
+
 
 if __name__ == "__main__":
     unittest.main()
+
