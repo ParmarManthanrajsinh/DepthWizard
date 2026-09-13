@@ -84,11 +84,20 @@ def generate_terrain_mesh(
     elevation_map: np.ndarray,
     target_res: int = MESH_GRID_RESOLUTION,
     height_scale: float = DEFAULT_HEIGHT_SCALE,
-    adaptive_decimate: bool = False
+    adaptive_decimate: bool = False,
+    physical_span: float = 600.0,
+    feather_fraction: float = 0.09,
+    feather_rim_y: float = -1.0,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Generate triangulated 3D mesh from 2D elevation grid.
     Returns (vertices, normals, uvs, indices).
+
+    The outer apron of the grid (``feather_fraction`` of each side) is
+    smoothly sloped down to ``feather_rim_y`` so the tile meets the sea
+    with a beach falloff instead of a cliff wall. Interior heights are
+    untouched. ``feather_rim_y`` should stay below the engine water level
+    (1.5) and above the seabed plane (-5.5).
     """
     # Downsample/resample elevation map to target resolution
     img = Image.fromarray(elevation_map.astype(np.float32))
@@ -102,9 +111,24 @@ def generate_terrain_mesh(
     else:
         norm_h = np.zeros_like(h_grid)
 
+    # Beach falloff: slope the outer apron below sea level so the tile
+    # blends into the ocean instead of ending in a cliff wall.
+    feather_px = max(int(round(target_res * feather_fraction)), 0)
+    if feather_px > 0 and height_scale != 0:
+        rows, cols = np.mgrid[0:target_res, 0:target_res]
+        edge_dist = np.minimum(
+            np.minimum(rows, cols),
+            np.minimum(target_res - 1 - rows, target_res - 1 - cols),
+        ).astype(np.float32) / float(feather_px)
+        mask = np.clip(edge_dist, 0.0, 1.0)
+        # smoothstep for C1-continuous slope into the rim
+        mask = mask * mask * (3.0 - 2.0 * mask)
+        rim_norm = np.float32(feather_rim_y / height_scale)
+        norm_h = rim_norm * (1.0 - mask) + norm_h * mask
+
     # Mesh physical extents in virtual units (enlarged for realistic wide map view)
-    width = 240.0
-    depth = 240.0
+    width = physical_span
+    depth = physical_span
 
     xs = np.linspace(-width / 2.0, width / 2.0, target_res, dtype=np.float32)
     zs = np.linspace(-depth / 2.0, depth / 2.0, target_res, dtype=np.float32)
@@ -332,7 +356,10 @@ def build_terrain_glb(
     texture_image: Image.Image,
     output_path: Path,
     grid_resolution: int = MESH_GRID_RESOLUTION,
-    height_scale: float = DEFAULT_HEIGHT_SCALE
+    height_scale: float = DEFAULT_HEIGHT_SCALE,
+    physical_span: float = 600.0,
+    feather_fraction: float = 0.09,
+    feather_rim_y: float = -1.0,
 ) -> Path:
     """
     Complete pipeline to generate triangulated 3D mesh and export to glTF .glb.
@@ -341,6 +368,9 @@ def build_terrain_glb(
         elevation_map=elevation_map,
         target_res=grid_resolution,
         height_scale=height_scale,
+        physical_span=physical_span,
+        feather_fraction=feather_fraction,
+        feather_rim_y=feather_rim_y,
     )
 
     return export_pure_glb(

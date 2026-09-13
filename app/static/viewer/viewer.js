@@ -80,6 +80,56 @@
         } else {
           if (hudStatus) hudStatus.textContent = "GRID FALLBACK (PARSE ERR)";
         }
+
+        // Airplane model + Atlasjet livery texture:
+        try {
+          const texCandidates = [
+            "/static/viewer/atlasjet-texture/atlasjet-white.png",
+            "/static/viewer/atlasjet-texture/atlasjet-black.png"
+          ];
+          for (const texUrl of texCandidates) {
+            try {
+              const texRes = await fetch(texUrl);
+              if (!texRes.ok) continue;
+              const texBuf = await texRes.arrayBuffer();
+              window.Module.FS.writeFile("/atlasjet.png", new Uint8Array(texBuf));
+              break;
+            } catch (te) { /* continue */ }
+          }
+
+          const candidates = ["/static/viewer/jet.glb", "/static/models/plane.glb"];
+          for (const url of candidates) {
+            const planeRes = await fetch(url);
+            if (!planeRes.ok) continue;
+            const planeBuf = await planeRes.arrayBuffer();
+            window.Module.FS.writeFile("/plane.glb", new Uint8Array(planeBuf));
+            const planeLoaded = window.Module.ccall(
+              "LoadPlaneModel",
+              "number",
+              ["string"],
+              ["/plane.glb"]
+            );
+            if (planeLoaded) {
+              try {
+                window.Module.ccall(
+                  "LoadPlaneTexture",
+                  "number",
+                  ["string"],
+                  ["/atlasjet.png"]
+                );
+              } catch (tErr) {
+                console.info("Raylib WASM: LoadPlaneTexture optional hook:", tErr);
+              }
+            }
+            console.log(
+              `Raylib WASM: custom plane model ${url} ` +
+                (planeLoaded ? "loaded." : "rejected, procedural fallback kept.")
+            );
+            break;
+          }
+        } catch (planeErr) {
+          console.info("Raylib WASM: plane model fetch skipped:", planeErr);
+        }
       } catch (e) {
         console.error("Failed to load mesh in WASM:", e);
         if (hudStatus) hudStatus.textContent = "MESH STREAM FAILED";
@@ -87,7 +137,9 @@
     },
   };
 
-  // Live Telemetry HUD Bridge called directly from Raylib's C++ frame loop
+  // Live Telemetry HUD Bridge called directly from Raylib's C++ frame loop.
+  // Trailing args (gameMode, speedKmh, throttlePct) are appended by newer
+  // engine builds; defaults keep this compatible with older WASM bundles.
   window.updateWasmHUD = function (
     alt,
     posX,
@@ -97,8 +149,14 @@
     fps,
     mode,
     deltaH,
-    probeStatus
+    probeStatus,
+    gameMode,
+    speedKmh,
+    throttlePct
   ) {
+    gameMode = gameMode === undefined ? 0 : gameMode;
+    speedKmh = speedKmh === undefined ? 0 : speedKmh;
+    throttlePct = throttlePct === undefined ? 0 : throttlePct;
     if (hudAlt) hudAlt.textContent = `${alt} m`;
     if (hudPos) hudPos.textContent = `${posX}, ${posZ}`;
     if (hudSlope) hudSlope.textContent = `${pitch}°`;
@@ -137,6 +195,25 @@
     ) {
       hudStatus.textContent = `RAYLIB WASM (${fps} FPS)`;
     }
+
+    const hudMode = document.getElementById("hud-mode");
+    if (hudMode) {
+      const names = ["FREE-FLY", "PLANE", "FIRST-PERSON"];
+      hudMode.textContent = names[gameMode] || names[0];
+      hudMode.style.color =
+        gameMode === 1 ? "#ffaa00" : gameMode === 2 ? "#00f0ff" : "";
+    }
+
+    const hudSpeed = document.getElementById("hud-speed");
+    if (hudSpeed) {
+      if (gameMode === 1) {
+        hudSpeed.textContent = `${speedKmh} km/h · THR ${throttlePct}%`;
+      } else if (gameMode === 2) {
+        hudSpeed.textContent = speedKmh > 0 ? `${speedKmh} km/h (WALK)` : "0 km/h (WALK)";
+      } else {
+        hudSpeed.textContent = "—";
+      }
+    }
   };
 
   // Focus canvas on click so Raylib receives key events (WASD, X, Space, etc.)
@@ -173,6 +250,35 @@
       if (window.Module && window.Module.ccall) {
         window.Module.ccall("TriggerProbe", null, [], []);
       }
+    });
+  }
+
+  // Game-mode switcher badges (1 = free-fly, 2 = plane, 3 = FPS)
+  function setGameMode(mode) {
+    if (window.Module && window.Module.ccall) {
+      try {
+        window.Module.ccall("SetGameMode", null, ["number"], [mode]);
+      } catch (e) {
+        console.warn("SetGameMode ccall failed:", e);
+      }
+    }
+  }
+  const modeFlyBtn = document.getElementById("hud-mode-fly");
+  if (modeFlyBtn) {
+    modeFlyBtn.addEventListener("click", function () {
+      setGameMode(0);
+    });
+  }
+  const modePlaneBtn = document.getElementById("hud-mode-plane");
+  if (modePlaneBtn) {
+    modePlaneBtn.addEventListener("click", function () {
+      setGameMode(1);
+    });
+  }
+  const modeFpsBtn = document.getElementById("hud-mode-fps");
+  if (modeFpsBtn) {
+    modeFpsBtn.addEventListener("click", function () {
+      setGameMode(2);
     });
   }
 })();

@@ -1,84 +1,23 @@
 #include "terrain.h"
+#include "world.h"
 #include <string>
 #include <cstdint>
 
+// Manual override: set to true to force plain-white terrain (ignores the
+// embedded optical texture). Default false: the optical texture is used
+// whenever the GLB provides one (auto-detected in Load()).
+static constexpr bool kForceWhiteAlbedo = false;
+
 #if defined(PLATFORM_WEB)
-    #define GLSL_HEADER "precision mediump float;\n"
-    #define GLSL_IN     "attribute"
-    #define GLSL_OUT    "varying"
+#include "shaders_gen/terrain_web_vs.h"
 #else
-    #define GLSL_HEADER "#version 330\n"
-    #define GLSL_IN     "in"
-    #define GLSL_OUT    "out"
+#include "shaders_gen/terrain_desktop_vs.h"
 #endif
 
-static const char* kTerrainVS =
-    "attribute vec3 vertexPosition;\n"
-    "attribute vec2 vertexTexCoord;\n"
-    "attribute vec3 vertexNormal;\n"
-    "attribute vec4 vertexColor;\n"
-    "uniform mat4 mvp;\n"
-    "varying vec2 fragTexCoord;\n"
-    "varying vec4 fragColor;\n"
-    "varying float fragLight;\n"
-    "void main() {\n"
-    "    fragTexCoord = vertexTexCoord;\n"
-    "    vec3 lightDir = normalize(vec3(0.55, 0.75, 0.35));\n"
-    "    vec3 norm = normalize(vertexNormal);\n"
-    "    float diff = max(dot(norm, lightDir), 0.0);\n"
-    "    fragLight = 0.45 + 0.55 * diff;\n"
-    "    float hNorm = clamp(vertexPosition.y / 45.0, 0.0, 1.0);\n"
-    "    vec3 lowColor = vec3(0.22, 0.46, 0.24);\n"
-    "    vec3 midColor = vec3(0.74, 0.62, 0.38);\n"
-    "    vec3 highColor = vec3(0.95, 0.96, 0.98);\n"
-    "    vec3 terrainCol = (hNorm < 0.5) ? mix(lowColor, midColor, hNorm * 2.0) : mix(midColor, highColor, (hNorm - 0.5) * 2.0);\n"
-    "    fragColor = vec4(terrainCol, 1.0);\n"
-    "    gl_Position = mvp * vec4(vertexPosition, 1.0);\n"
-    "}\n";
-
 #if defined(PLATFORM_WEB)
-static const char* kTerrainFS =
-    "precision mediump float;\n"
-    "varying vec2 fragTexCoord;\n"
-    "varying vec4 fragColor;\n"
-    "varying float fragLight;\n"
-    "uniform sampler2D texture0;\n"
-    "uniform vec4 colDiffuse;\n"
-    "uniform int uRenderMode;\n"
-    "void main() {\n"
-    "    vec4 baseColor = fragColor;\n"
-    "    if (uRenderMode == 0) {\n"
-    "        vec4 texColor = texture2D(texture0, fragTexCoord);\n"
-    "        if (texColor.a > 0.0) {\n"
-    "            baseColor = texColor;\n"
-    "        }\n"
-    "    }\n"
-    "    vec3 tint = (colDiffuse.r + colDiffuse.g + colDiffuse.b > 0.01) ? colDiffuse.rgb : vec3(1.0);\n"
-    "    vec3 finalRgb = baseColor.rgb * fragLight * tint;\n"
-    "    gl_FragColor = vec4(finalRgb, 1.0);\n"
-    "}\n";
+#include "shaders_gen/terrain_web_fs.h"
 #else
-static const char* kTerrainFS =
-    "#version 330\n"
-    "in vec2 fragTexCoord;\n"
-    "in vec4 fragColor;\n"
-    "in float fragLight;\n"
-    "uniform sampler2D texture0;\n"
-    "uniform vec4 colDiffuse;\n"
-    "uniform int uRenderMode;\n"
-    "out vec4 finalColor;\n"
-    "void main() {\n"
-    "    vec4 baseColor = fragColor;\n"
-    "    if (uRenderMode == 0) {\n"
-    "        vec4 texColor = texture(texture0, fragTexCoord);\n"
-    "        if (texColor.a > 0.0) {\n"
-    "            baseColor = texColor;\n"
-    "        }\n"
-    "    }\n"
-    "    vec3 tint = (colDiffuse.r + colDiffuse.g + colDiffuse.b > 0.01) ? colDiffuse.rgb : vec3(1.0);\n"
-    "    vec3 finalRgb = baseColor.rgb * fragLight * tint;\n"
-    "    finalColor = vec4(finalRgb, 1.0);\n"
-    "}\n";
+#include "shaders_gen/terrain_desktop_fs.h"
 #endif
 
 FTerrainRenderer::FTerrainRenderer()
@@ -87,6 +26,11 @@ FTerrainRenderer::FTerrainRenderer()
     , bIsLoaded(false)
     , RenderMode(ETerrainRenderMode::OpticalRGB)
     , RenderModeLoc(-1)
+    , CamPosLoc(-1)
+    , FogStartLoc(-1)
+    , FogEndLoc(-1)
+    , HazeColorLoc(-1)
+    , PlainWhiteLoc(-1)
 {
 }
 
@@ -123,11 +67,37 @@ bool FTerrainRenderer::Load(std::string_view InFilePath)
                 TerrainShader = LoadShaderFromMemory(kTerrainVS, kTerrainFS);
                 TerrainShader.locs[SHADER_LOC_MAP_ALBEDO] = GetShaderLocation(TerrainShader, "texture0");
                 RenderModeLoc = GetShaderLocation(TerrainShader, "uRenderMode");
+                PlainWhiteLoc = GetShaderLocation(TerrainShader, "uPlainWhite");
+                CamPosLoc = GetShaderLocation(TerrainShader, "uCamPos");
+                FogStartLoc = GetShaderLocation(TerrainShader, "uFogStart");
+                FogEndLoc = GetShaderLocation(TerrainShader, "uFogEnd");
+                HazeColorLoc = GetShaderLocation(TerrainShader, "uHazeColor");
+
+                // Calm midday aerial perspective; matches FSkyDome horizon.
+                const float FogStart = FWorldDressing::kFogStart;
+                const float FogEnd = FWorldDressing::kFogEnd;
+                const float Haze[3] = {
+                    FWorldDressing::kHazeColor.r / 255.0f,
+                    FWorldDressing::kHazeColor.g / 255.0f,
+                    FWorldDressing::kHazeColor.b / 255.0f
+                };
+                if (FogStartLoc >= 0) SetShaderValue(TerrainShader, FogStartLoc, &FogStart, SHADER_UNIFORM_FLOAT);
+                if (FogEndLoc >= 0) SetShaderValue(TerrainShader, FogEndLoc, &FogEnd, SHADER_UNIFORM_FLOAT);
+                if (HazeColorLoc >= 0) SetShaderValue(TerrainShader, HazeColorLoc, Haze, SHADER_UNIFORM_VEC3);
             }
             if (RenderModeLoc >= 0)
             {
                 int32_t ModeVal = (RenderMode == ETerrainRenderMode::OpticalRGB) ? 0 : 1;
                 SetShaderValue(TerrainShader, RenderModeLoc, &ModeVal, SHADER_UNIFORM_INT);
+            }
+            if (PlainWhiteLoc >= 0)
+            {
+                // Use the embedded optical texture when the GLB provides one;
+                // fall back to plain white only when no albedo texture exists.
+                // (The shader additionally rejects near-black texels so broken
+                // sampling can never turn the mesh black.)
+                const int32_t PlainVal = (texID > 0 && !kForceWhiteAlbedo) ? 0 : 1;
+                SetShaderValue(TerrainShader, PlainWhiteLoc, &PlainVal, SHADER_UNIFORM_INT);
             }
             if (TerrainShader.id > 0)
             {
@@ -190,6 +160,14 @@ void FTerrainRenderer::ToggleWireframe()
     }
 }
 
+void FTerrainRenderer::UpdateFog(const Vector3& InCameraPos)
+{
+    if (TerrainShader.id > 0 && CamPosLoc >= 0)
+    {
+        SetShaderValue(TerrainShader, CamPosLoc, &InCameraPos, SHADER_UNIFORM_VEC3);
+    }
+}
+
 void FTerrainRenderer::Draw()
 {
     if (!bIsLoaded)
@@ -241,5 +219,40 @@ bool FTerrainRenderer::Raycast(Ray InRay, Vector3& OutHitPoint, Vector3& OutHitN
     }
 
     return bAnyHit;
+}
+
+bool FTerrainRenderer::GetHeightAt(float InX, float InZ, float& OutHeightY) const
+{
+    if (!bIsLoaded || TerrainModel.meshCount == 0)
+    {
+        return false;
+    }
+
+    const Ray DownRay = { Vector3{ InX, 500.0f, InZ }, Vector3{ 0.0f, -1.0f, 0.0f } };
+    bool bAnyHit = false;
+    float ClosestDist = 1e9f;
+
+    for (int32_t Index = 0; Index < TerrainModel.meshCount; ++Index)
+    {
+        const RayCollision Collision = GetRayCollisionMesh(DownRay, TerrainModel.meshes[Index], TerrainModel.transform);
+        if (Collision.hit && Collision.distance < ClosestDist)
+        {
+            ClosestDist = Collision.distance;
+            OutHeightY = Collision.point.y;
+            bAnyHit = true;
+        }
+    }
+
+    return bAnyHit;
+}
+
+float FTerrainRenderer::GetGroundHeightOr(float InX, float InZ, float InFallbackY) const
+{
+    float HeightY = InFallbackY;
+    if (GetHeightAt(InX, InZ, HeightY))
+    {
+        return HeightY;
+    }
+    return InFallbackY;
 }
 

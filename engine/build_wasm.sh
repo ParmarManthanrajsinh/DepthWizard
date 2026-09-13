@@ -15,10 +15,22 @@ if ! command -v emcc &> /dev/null; then
     exit 1
 fi
 
+# Embed GLSL shaders from shaders/*.glsl into src/shaders_gen/*.h
+if ! command -v python3 &> /dev/null; then
+    echo "Error: python3 not found. Required to embed shaders before build."
+    exit 1
+fi
+python3 "${SCRIPT_DIR}/tools/embed_shaders.py"
+
 em++ \
     "${SCRIPT_DIR}/src/main.cpp" \
     "${SCRIPT_DIR}/src/camera.cpp" \
     "${SCRIPT_DIR}/src/terrain.cpp" \
+    "${SCRIPT_DIR}/src/world.cpp" \
+    "${SCRIPT_DIR}/src/sky.cpp" \
+    "${SCRIPT_DIR}/src/clouds.cpp" \
+    "${SCRIPT_DIR}/src/plane.cpp" \
+    "${SCRIPT_DIR}/src/walker.cpp" \
     -o "${OUTPUT_DIR}/raylib_viewer.js" \
     -std=c++20 \
     -O2 \
@@ -28,6 +40,6 @@ em++ \
     -sUSE_GLFW=3 \
     -sALLOW_MEMORY_GROWTH=1 \
     -sEXPORTED_RUNTIME_METHODS="['ccall','cwrap','FS']" \
-    -sEXPORTED_FUNCTIONS="['_main','_LoadTerrainFromMemory','_ToggleWireframe','_CycleRenderMode','_GetRenderMode','_TriggerProbe','_GetProbeDeltaH','_GetGroundSlope','_ResetCamera','_GetCameraAlt','_GetCameraPosX','_GetCameraPosZ','_GetCameraPitch','_GetEngineFPS']"
+    -sEXPORTED_FUNCTIONS="['_main','_LoadTerrainFromMemory','_LoadPlaneModel','_LoadPlaneTexture','_ToggleWireframe','_CycleRenderMode','_GetRenderMode','_TriggerProbe','_GetProbeDeltaH','_GetGroundSlope','_ResetCamera','_SetGameMode','_GetGameMode','_GetCameraAlt','_GetCameraPosX','_GetCameraPosZ','_GetCameraPitch','_GetEngineFPS','_GetAirspeedKmh','_GetThrottlePct']"
 
 echo "=== Build Complete! Output: ${OUTPUT_DIR}/raylib_viewer.js ==="

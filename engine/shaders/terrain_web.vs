@@ -1,0 +1,21 @@
+attribute vec3 vertexPosition;
+attribute vec2 vertexTexCoord;
+attribute vec3 vertexNormal;
+attribute vec4 vertexColor;
+uniform mat4 mvp;
+varying vec2 fragTexCoord;
+varying vec4 fragColor;
+varying vec3 fragNormal;
+varying vec3 fragWorldPos;
+void main() {
+    fragTexCoord = vertexTexCoord;
+    fragWorldPos = vertexPosition;
+    fragNormal = vertexNormal;
+    float hNorm = clamp(vertexPosition.y / 65.0, 0.0, 1.0);
+    vec3 lowColor = vec3(0.24, 0.36, 0.22);
+    vec3 midColor = vec3(0.48, 0.46, 0.40);
+    vec3 highColor = vec3(0.92, 0.94, 0.96);
+    vec3 terrainCol = (hNorm < 0.45) ? mix(lowColor, midColor, hNorm / 0.45) : mix(midColor, highColor, (hNorm - 0.45) / 0.55);
+    fragColor = vec4(terrainCol, 1.0);
+    gl_Position = mvp * vec4(vertexPosition, 1.0);
+}

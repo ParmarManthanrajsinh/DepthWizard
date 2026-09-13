@@ -37,6 +37,9 @@ results/best_checkpoint.pt
 # Engine / C++ Build artifacts
 engine/build/
 engine/bin/
+# Generated shader headers (regenerated from engine/shaders/*.glsl by
+# engine/tools/embed_shaders.py on every build)
+engine/src/shaders_gen/
 *.o
 *.obj
 *.exe

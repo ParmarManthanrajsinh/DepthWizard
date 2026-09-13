@@ -52,6 +52,14 @@
       <span>SHADING MODE:</span>
       <span class="hud-val" id="hud-shading" style="color: var(--color-ink);">OPTICAL RGB</span>
     </div>
+    <div class="hud-stat">
+      <span>GAME MODE:</span>
+      <span class="hud-val" id="hud-mode" style="color: var(--color-ink);">FREE-FLY</span>
+    </div>
+    <div class="hud-stat">
+      <span>AIRSPEED:</span>
+      <span class="hud-val" id="hud-speed" style="color: #ffaa00;">—</span>
+    </div>
     <div class="hud-stat" style="margin-top: var(--space-2xs); border-top: 2px solid var(--color-rule); padding-top: var(--space-2xs);">
       <span>ENGINE STATE:</span>
       <span class="hud-val" id="hud-status" style="color: var(--color-accent-green);">INITIALIZING</span>
@@ -67,6 +75,11 @@
     <div><kbd>Space</kbd> / <kbd>C</kbd> — CLIMB / DESCEND VECTOR</div>
     <div><kbd>Shift</kbd> — TURBO BOOST (2.5×)</div>
     <div><kbd>Mouse Drag</kbd> — STEER PITCH / YAW</div>
+    <div style="margin-top: 0.35rem; font-weight: 700;">GAME MODES</div>
+    <div id="hud-mode-fly" style="cursor: pointer;"><kbd>1</kbd> — FREE-FLY INSPECTION CAMERA</div>
+    <div id="hud-mode-plane" style="cursor: pointer;"><kbd>2</kbd> — ARCADE PLANE (W/S THROTTLE)</div>
+    <div id="hud-mode-fps" style="cursor: pointer;"><kbd>3</kbd> — FIRST-PERSON WALKER</div>
+    <div><kbd>V</kbd> — CYCLE MODE · <kbd>R</kbd> — RESET MODE</div>
     <div id="hud-probe-btn" style="cursor: pointer;"><kbd>P</kbd> — MEASURE STRUCTURAL HEIGHT (ΔH)</div>
     <div id="hud-shading-btn" style="cursor: pointer;"><kbd>T</kbd> — TOGGLE SATELLITE / HILLSHADE</div>
     <div id="hud-wireframe-btn" style="cursor: pointer;"><kbd>X</kbd> — TOGGLE WIREFRAME MESH</div>
