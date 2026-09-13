@@ -76,8 +76,10 @@ Progress tracked against the 50/50 judging split: **50% Metric DSM Accuracy** + 
   - [x] Native C++ Raylib WebAssembly 3D engine (`raylib_viewer.wasm` + `raylib_viewer.js`) compiled via EMSDK.
   - [x] Emscripten MEMFS mesh ingestion: direct streaming of `.glb` models from FastAPI into WASM VRAM.
   - [x] 6-DOF first-person flight camera (WASD lateral/forward, Space/C vertical, Shift 2.5x turbo boost, mouse drag look).
+  - [x] Optical RGB satellite photo draping onto 3D mesh via embedded texture mapping in custom C++ shaders.
+  - [x] 3 interactive render modes: Optical RGB Texture drape, Hillshade Shading, and Wireframe (switched with `M` and `X` keys).
+  - [x] Structural height & slope assessment: live elevation probe (`_TriggerProbe`, `_GetProbeDeltaH`) and real-time ground slope angle readout (`_GetGroundSlope`, `#hud-slope`).
   - [x] Live aerospace telemetry HUD overlay (camera altitude, coordinate readouts, slope pitch, spatial CRS, engine state) bridged directly from C++ frame loop.
-  - [x] Interactive mesh wireframe toggle mode (`X` key).
   - [x] Complete elimination of Three.js and all external CDN 3D libraries.
   - [x] Cross-platform build automation (`build_wasm.ps1`, `build_wasm.bat`, `build_wasm.sh`).
 
@@ -87,28 +89,29 @@ Progress tracked against the 50/50 judging split: **50% Metric DSM Accuracy** + 
   - [x] Real-time telemetry badges: Active depth model ("Depth Anything V2 [PyTorch]" vs "Mock Dev Mode") and calibration accuracy provenance ("Verified Ground Truth" vs "Synthetic Baseline").
   - [x] Async background worker execution queue with SQLite persistence via SQLAlchemy.
   - [x] Clean, aerospace telemetry design system locked in `design.md` with Hallmark anti-slop rules.
-  - [x] Full test suite with automated pipeline, API, and WebAssembly viewer testing (`pytest tests -v`).
+  - [x] Full test suite with automated pipeline, API, ML losses, and WebAssembly viewer testing (`pytest tests -v`, 28/28 tests passing).
 
 ---
 
 ### Future Implementation (Remaining Roadmap)
 
-- [ ] **Module 1: Elevation Pipeline Scaling & Ground Truthing**
-  - [ ] **Satellite-Specific Model Tuning**: Benchmark fine-tuned ZoeDepth and satellite-specialized Depth Anything checkpoints.
+- [ ] **Module 1: Elevation Pipeline Scaling & Multi-Biome Expansion**
+  - [x] **Dual-Protocol Benchmark Suite**: Automated batch evaluation on held-out test sets (`ml/evaluate.py`) with honest frozen global calibration vs oracle ceiling.
+  - [x] **Multi-Biome Preparation**: Automated ingestion and manifest cataloging for ISPRS Potsdam (urban) and ISPRS Vaihingen (historic/suburban).
+  - [ ] **GAMUS Dataset Evaluation**: Zero-shot evaluation against Hugging Face `earthflow/GAMUS` remote sensing depth pairs.
+  - [ ] **Full Multi-Epoch GPU Fine-Tuning**: Complete 5-epoch training on RTX 4080 / 4060 using `ml/train.py`.
   - [ ] **Large Scene Tiling**: Cloud Optimized GeoTIFF (COG) windowed reading and chunked inference for gigabyte-scale scenes.
 
 - [ ] **Module 2: Advanced Mesh & Polygon Optimization**
-  - [ ] **Adaptive Quadric Error Metric (QEM) Decimation**: Dynamic Level of Detail (LOD) polygon reduction to sustain 60 FPS on lower-end devices.
+  - [ ] **Adaptive Quadric Error Metric (QEM) Decimation**: Dynamic Level of Detail (LOD) polygon reduction to sustain 60 FPS on low-power devices.
   - [ ] **Normal Map Baking**: High-to-low poly normal map baking to retain micro-surface detail without polygon overhead.
   - [ ] **Multi-Format Export**: Alternative packaging for Wavefront OBJ + MTL bundles alongside single-file `.glb`.
 
-- [ ] **Module 3: Enhanced Flight Simulation & Topographic Shaders**
+- [ ] **Module 3: Enhanced Flight Simulation & Tours**
   - [ ] **Cinematic Flight Paths**: Waypoint-based automated flythrough tours and camera trajectory replay for jury demonstrations.
-  - [ ] **Topographic Shader Effects**: Real-time contour lines and dynamic sun-angle directional hillshading in fragment shader.
-  - [ ] **Slope Hazard Heatmap**: Visual color-coded slope overlay to assist disaster and terrain risk assessment.
+  - [ ] **Dynamic Sun-Angle Directional Shading**: Real-time adjustable solar azimuth/elevation lighting in fragment shader.
 
-- [ ] **Module 4: Benchmarking & Demonstration Deliverables**
-  - [ ] **Standardized Benchmark Script**: Automated batch evaluation against ISRO SAC test datasets reporting aggregate RMSE and MAE.
+- [ ] **Module 4: Deployment Deliverables**
   - [ ] **Single-Container Cloud Deployment**: Push pre-built image to Docker Hub / deploy to public VPS / Fly.io for remote judges.
   - [ ] **Pitch & Deliverables Package**: Technical architecture presentation slides, jury demo script, and final report.
 
@@ -129,6 +132,8 @@ py -3.12 -m pip install -r requirements.txt
 py -3.12 run.py
 ```
 
+> **Model weights — no git files needed.** The depth model (`Depth-Anything-V2-Small-hf`) is **not stored in this repository**; it is downloaded automatically from the HuggingFace Hub (~100 MB) on first real inference and cached under `~/.cache/huggingface` for offline reuse afterwards. If the download is blocked (offline venue), the pipeline silently falls back to a synthetic `MockDepthEstimator` and the UI badge switches to "Mock Dev Mode" — every other feature still works. The fine-tuned `results/best_checkpoint.pt` is likewise gitignored and only used by the benchmark scripts (`ml/evaluate.py`); the web app never loads it.
+
 ### 3. Open in Browser
 Visit **`http://localhost:8000/`**.
 - Click **"🏔️ Himalayan Alpine Valley"** or **"🪐 Impact Crater"** for instant 1-click test runs.
@@ -148,7 +153,7 @@ SIH/
 │   │   └── models.py             # Job metadata SQLAlchemy model
 │   ├── pipeline/
 │   │   ├── estimator.py          # Depth Anything V2 + Mock fallback for dev
-│   │   ├── geospatial.py         # GeoTIFF CRS inspection & DSM export
+│   │   ├── geospatial.py         # GeoTIFF CRS inspection, slope profile & DSM export
 │   │   ├── calibration.py        # Least-squares scale/offset regression & RMSE
 │   │   ├── mesh_builder.py       # Heightmap -> Triangulated GLB / OBJ mesh
 │   │   └── runner.py             # Background pipeline executor
@@ -164,27 +169,53 @@ SIH/
 │       ├── css/style.css         # Manifesto responsive CSS design system
 │       ├── js/app.js             # Drag-and-drop & htmx helpers
 │       └── viewer/               # 3D Flythrough runtime (Raylib 6.0 WASM engine)
+├── ml/                           # Machine Learning Elevation Core
+│   ├── config.py                 # Portable paths, hyperparameters, hardware settings
+│   ├── dataset.py                # PyTorch dataset for paired remote sensing rasters
+│   ├── preprocessing.py          # Normalization, valid elevation masks & reprojection
+│   ├── losses.py                 # Scale-shift invariant & multi-scale gradient losses
+│   ├── train.py                  # DPT fine-tuning engine (fp16 AMP, gradient accum)
+│   ├── evaluate.py               # Dual-protocol held-out benchmark evaluator
+│   └── inference.py              # DepthAnythingV2 inference & affine calibrator
 ├── engine/                       # Module 3: Raylib / C++ Engine Source
 │   ├── CMakeLists.txt            # Native desktop build
-│   ├── build_wasm.bat            # Windows Emscripten compile script
+│   ├── build_wasm.ps1            # Windows PowerShell Emscripten compile script
+│   ├── build_wasm.bat            # Windows batch Emscripten compile script
 │   ├── build_wasm.sh             # Linux/macOS Emscripten compile script
 │   └── src/
 │       ├── main.cpp              # Raylib viewer loop (WASM/Native)
 │       ├── camera.cpp/h          # Free-fly first-person camera controller
-│       └── terrain.cpp/h         # Terrain loading & elevation queries
+│       └── terrain.cpp/h         # 3-mode terrain shader, slope & delta-h probe
 ├── data/
-│   ├── samples/                  # Pre-packaged sample optical images
+│   ├── manifest.csv              # Tile crop split manifest (train/val/test)
+│   ├── tiles_manifest.csv        # Multi-biome dataset manifest (Potsdam, Vaihingen)
+│   ├── samples/                  # Pre-packaged sample optical images & GeoTIFFs
 │   ├── uploads/                  # Raw user uploads
 │   └── outputs/                  # Calibrated DSMs (.tif) and 3D meshes (.glb)
+├── results/                      # Frozen benchmark models & evaluation outputs
+│   ├── global_calibration.json   # Frozen honest global affine (a=9.8105, b=33.7337m)
+│   ├── evaluation.json           # Dual-protocol 150-test-crop quantitative results
+│   ├── evaluation.csv            # Per-crop RMSE, MAE, correlation breakdown
+│   ├── best_checkpoint.pt        # Fine-tuned weights (gitignored — not in repo)
+│   └── training_log.json         # Fine-tuning training telemetry log
 ├── tests/
 │   ├── test_pipeline.py          # Pipeline unit tests (depth, mesh, GLB)
-│   └── test_api.py               # Integration tests for FastAPI endpoints
+│   ├── test_api.py               # Integration tests for FastAPI endpoints
+│   ├── test_losses.py            # Numerical tests for scale-shift invariant loss
+│   └── test_ml_pipeline.py       # Dataset, preprocessing & alignment tests
 ├── scripts/
-│   └── generate_sample.py        # Synthetic test data generator
+│   ├── fit_global_calibration.py # Computes frozen global affine parameters
+│   ├── prepare_potsdam_dataset.py# Tiles & splits ISPRS Potsdam dataset
+│   ├── prepare_vaihingen_dataset.py# Ingests & aligns ISPRS Vaihingen multi-biome data
+│   ├── generate_sample.py        # Synthetic test data generator
+│   ├── test_dataset_samples.py   # Dataset sample raster verification
+│   └── test_end_to_end.py        # Full pipeline integration verification
 ├── Dockerfile                    # Single-container deploy
 ├── requirements.txt              # Core python packages
 ├── run.py                        # Single-command launcher
-└── REPORT.md                     # Full architectural report
+├── design.md                     # Manifesto design system specifications
+├── ANALYSIS.md                   # Problem statement gap analysis & milestones
+└── REPORT.md                     # Full architectural & technical report
 ```
 
 ---
