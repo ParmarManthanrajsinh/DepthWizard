@@ -7,7 +7,7 @@ import numpy as np
 from PIL import Image
 
 from app.pipeline.calibration import calibrate_elevation, fit_linear_scale_offset
-from app.pipeline.estimator import MockDepthEstimator
+from app.pipeline.estimator import DepthAnythingV2Estimator, MockDepthEstimator
 from app.pipeline.geospatial import generate_colorized_preview, save_dsm_geotiff
 from app.pipeline.mesh_builder import build_terrain_glb, generate_terrain_mesh
 
@@ -141,6 +141,71 @@ class TestElevationPipeline(unittest.TestCase):
         self.assertIsNotNone(res.correlation)
         self.assertGreater(res.elevation_max, res.elevation_min)
         self.assertGreater(res.correlation, 0.95)
+
+    def test_real_estimator_fallback_reports_used_fallback(self):
+        """When _load() fails (no weights/net/CUDA), estimate() must fall back to
+        mock AND report it via used_fallback so callers can label honestly."""
+        estimator = DepthAnythingV2Estimator(model_name="nonexistent/model-xyz")
+        # Force the load to fail regardless of environment.
+        estimator._load = lambda: None  # never initializes
+        estimator._initialized = False
+        estimator._model = None
+        estimator._processor = None
+
+        heightmap = estimator.estimate(self.test_img)
+
+        self.assertEqual(heightmap.shape, self.test_img.size[::-1])
+        self.assertTrue(estimator.used_fallback)
+        self.assertFalse(estimator._initialized)
+
+    def test_real_estimator_success_clears_fallback_flag(self):
+        """A successful real inference must report used_fallback=False, even if a
+        previous call on the same instance fell back (mid-session recovery)."""
+        estimator = DepthAnythingV2Estimator()
+        # Stub _load so the test never touches the network/HF cache.
+        estimator._load = lambda: None
+
+        # First: a fallback occurs (e.g. load failure mid-session)
+        estimator._initialized = False
+        estimator._model = None
+        self.assertTrue(estimator.estimate(self.test_img).shape[0] > 0)
+        self.assertTrue(estimator.used_fallback)
+
+        # Then: model becomes available (e.g. weights finished downloading)
+        estimator._initialized = True
+        estimator._model = object()
+        estimator._processor = object()
+        estimator._estimate_real = lambda image: np.zeros(
+            (image.size[1], image.size[0]), dtype=np.float32
+        )
+        result = estimator.estimate(self.test_img)
+        self.assertFalse(estimator.used_fallback)
+        self.assertEqual(result.shape, (self.test_img.size[1], self.test_img.size[0]))
+
+    def test_force_mock_override_reports_fallback(self):
+        """USE_MOCK_MODEL dev override must also yield used_fallback=True."""
+        estimator = DepthAnythingV2Estimator()
+        estimator.force_mock()
+        heightmap = estimator.estimate(self.test_img)
+        self.assertEqual(heightmap.shape, self.test_img.size[::-1])
+        self.assertTrue(estimator.used_fallback)
+
+    def test_runner_label_reflects_actual_outcome(self):
+        """runner.run_pipeline_for_job must set job.model_name from the estimator's
+        reported outcome, not an assumption made before inference."""
+        import inspect
+        from app.pipeline import runner as runner_module
+
+        source = inspect.getsource(runner_module.run_pipeline_for_job)
+        # Label derivation must happen AFTER estimate() has run
+        self.assertGreater(
+            source.index("model_label = "),
+            source.index("estimator.estimate(rgb_img)"),
+            "model_label must be derived after estimate() reports its outcome",
+        )
+        self.assertIn('model_label = "Mock Dev Mode"', source)
+        self.assertIn('model_label = "Depth Anything V2 (PyTorch)"', source)
+        self.assertIn("estimator.used_fallback", source)
 
     def test_compute_slope_profile(self):
         from app.pipeline.geospatial import compute_slope_profile

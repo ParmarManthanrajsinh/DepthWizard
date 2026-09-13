@@ -1,21 +1,3 @@
-Read URL: https://github.com/IMG-PROCESS-SAC/SIH-DepthWizard-2026
-Viewed content.md:1-300
-Searched for "README.md"
-Ran command: `git remote -v`
-Read URL: https://raw.githubusercontent.com/IMG-PROCESS-SAC/SIH-DepthWizard-2026/main/README.md
-Viewed content.md:1-31
-Ran command: `git ls-remote https://github.com/IMG-PROCESS-SAC/SIH-DepthWizard-2026.git`
-Ran command: `git fetch https://github.com/IMG-PROCESS-SAC/SIH-DepthWizard-2026.git main`
-Ran command: `git ls-tree -r FETCH_HEAD`
-Ran command: `git show FETCH_HEAD:README.md`
-Viewed mesh_builder.py:1-100
-Viewed mesh_builder.py:170-300
-Viewed REPORT.md:1-182
-Ran command: `Get-ChildItem -Path . -Filter "Docker*" -File`
-Viewed Dockerfile:1-25
-Listed directory scripts
-Viewed generate_sample.py:1-100
-
 # DepthWizard — Problem Statement Analysis & Implementation Roadmap
 **Reference:** [IMG-PROCESS-SAC/SIH-DepthWizard-2026](https://github.com/IMG-PROCESS-SAC/SIH-DepthWizard-2026) · **Problem Statement ID: 26175**  
 **Core Mission:** Single-View Height Estimation and 3D Flythrough (ISRO Space Applications Centre)
@@ -45,7 +27,8 @@ Comparison of current DepthWizard implementation against official ISRO specifica
 [Official ISRO PS ID: 26175]                   [DepthWizard Current Status]
 ├── Optical RGB Texture Projection ─────────▶ ✅ RESOLVED: Satellite drape via baseColorTexture in Raylib C++ shader
 ├── Structural Height & Slope Analysis ─────▶ ✅ RESOLVED: Real-time ground slope (_GetGroundSlope) + Δh probe
-├── 4-Biome Benchmark & Stability ──────────▶ ✅ RESOLVED: 150 held-out test crops (Potsdam urban) + Vaihingen prep
+├── 4-Biome Benchmark & Stability ──────────▶ ⏳ PARTIAL: 150 held-out Potsdam urban crops evaluated; Vaihingen prep
+│                                                        exists, evaluation pending; other biomes not yet evidenced
 ├── Standardized Benchmark Suite ───────────▶ ✅ RESOLVED: Dual-protocol evaluation (ml/evaluate.py) & metrics logged
 ├── rDSM vs Metric DSM UI Distinction ──────▶ ✅ RESOLVED: Provenance badges & separate relative/calibrated pipelines
 └── Standalone & Single-Container Deploy ───▶ ⏳ IN PROGRESS: Standalone WASM engine complete, Docker packaging ready
@@ -73,14 +56,15 @@ Comparison of current DepthWizard implementation against official ISRO specifica
 
 ---
 
-### Gap 3: Multi-Biome Benchmark Suite (Potsdam Urban & Vaihingen) *(RESOLVED)*
+### Gap 3: Multi-Biome Benchmark Suite (Potsdam Urban & Vaihingen) *(PARTIAL)*
 - **Requirement:** *"Must demonstrate performance stability across urban, sparse, hilly, and forested landscapes."*
-- **Status: RESOLVED.**
-  - Held-out test benchmark on **150 crops** across 6 distinct test tiles ($39,321,600$ valid pixels) from ISPRS Potsdam.
+- **Status: PARTIAL — one biome evaluated, three pending.**
+  - Held-out test benchmark on **150 crops** across 6 distinct test tiles ($39,321,600$ valid pixels) from ISPRS Potsdam (**urban only**).
   - Dual-protocol evaluation in `ml/evaluate.py`:
     - **Honest Frozen Global Calibration**: $4.07\text{ m}$ MAE, $4.63\text{ m}$ RMSE, $+0.647$ Pearson $r$.
-    - **Oracle Upper Bound**: $1.58\text{ m}$ MAE, $2.20\text{ m}$ RMSE.
-  - Multi-biome data ingestion script added for ISPRS Vaihingen (`scripts/prepare_vaihingen_dataset.py`) with unified manifest tracking.
+    - **Oracle Upper Bound** (per-image fit, diagnostic ceiling only): $1.58\text{ m}$ MAE, $2.20\text{ m}$ RMSE.
+  - Multi-biome data ingestion script added for ISPRS Vaihingen (`scripts/prepare_vaihingen_dataset.py`) with unified manifest tracking — **evaluation not yet run**.
+  - Generalization to sparse, hilly, and forested biomes **not yet evidenced**; see REPORT.md limitations.
 
 ---
 
@@ -100,7 +84,7 @@ Comparison of current DepthWizard implementation against official ISRO specifica
   - `runner.py` detects GeoTIFF CRS and bounding box via `rasterio`.
   - UI displays explicit provenance telemetry badges:
     - `"Verified Ground Truth (SRTM-30m / GCPs)"` vs `"Synthetic Baseline (Heuristic Calibration)"`.
-    - `"Depth Anything V2 (PyTorch)"` vs `"Mock Dev Mode"`.
+    - `"Depth Anything V2 (PyTorch)"` vs `"Mock Dev Mode"` — label derived from whether the real model actually ran, not assumed.
 
 ---
 

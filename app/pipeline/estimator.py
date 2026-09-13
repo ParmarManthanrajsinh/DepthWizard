@@ -56,9 +56,18 @@ class DepthAnythingV2Estimator:
         self._model = None
         self._processor = None
         self._initialized = False
+        # True when the last estimate() call served synthetic output because the
+        # real model could not be loaded/run (or a mock override was requested).
+        # Callers MUST check this before labeling results as real model output.
+        self.used_fallback = False
+        self._forced_mock = False
+
+    def force_mock(self) -> None:
+        """Explicit dev-mode override: never attempt to load the real model."""
+        self._forced_mock = True
 
     def _load(self) -> None:
-        if self._initialized:
+        if self._initialized or self._forced_mock:
             return
 
         try:
@@ -82,8 +91,21 @@ class DepthAnythingV2Estimator:
     def estimate(self, image: Image.Image) -> np.ndarray:
         self._load()
         if not self._initialized or self._model is None or self._processor is None:
+            self.used_fallback = True
             return MockDepthEstimator().estimate(image)
 
+        try:
+            result = self._estimate_real(image)
+            self.used_fallback = False
+            return result
+        except Exception as e:
+            # Real-model inference failure (CUDA OOM, processor error, ...) must
+            # never be silently presented as real-model output.
+            logger.error(f"Real depth inference failed: {e}. Falling back to MockDepthEstimator.")
+            self.used_fallback = True
+            return MockDepthEstimator().estimate(image)
+
+    def _estimate_real(self, image: Image.Image) -> np.ndarray:
         import torch
         inputs = self._processor(images=image, return_tensors="pt").to(self.device)
         with torch.no_grad():

@@ -3,7 +3,7 @@ import logging
 from pathlib import Path
 from PIL import Image
 
-from app.config import OUTPUTS_DIR, UPLOADS_DIR
+from app.config import OUTPUTS_DIR, UPLOADS_DIR, USE_MOCK_MODEL
 from app.db.models import Job, JobStatus
 from app.db.session import SessionLocal
 from app.pipeline.calibration import calibrate_elevation
@@ -51,10 +51,27 @@ def run_pipeline_for_job(job_id: str) -> None:
         with Image.open(input_path) as raw_img:
             rgb_img = raw_img.convert("RGB")
             estimator = DepthAnythingV2Estimator()
-            model_label = "Depth Anything V2 (PyTorch)"
+            # Optional manual mock override for local dev (app/config.py).
+            # applied BEFORE inference; label below still derives from the
+            # estimator's actual reported outcome, so the UI badge stays honest
+            # in both paths.
+            if USE_MOCK_MODEL:
+                estimator.force_mock()
+            relative_depth = estimator.estimate(rgb_img)
+            # Derive label from ACTUAL outcome, never assume real model ran.
+            # estimate() silently falls back to MockDepthEstimator on load or
+            # inference failure; labeling that as real would be fake data
+            # presented as real (same class of bug as the RMSE fix).
+            if estimator.used_fallback:
+                model_label = "Mock Dev Mode"
+                logger.warning(
+                    f"Job {job_id}: real depth model unavailable; "
+                    "falling back to MockDepthEstimator. Job labeled 'Mock Dev Mode'."
+                )
+            else:
+                model_label = "Depth Anything V2 (PyTorch)"
             job.model_name = model_label
             db.commit()
-            relative_depth = estimator.estimate(rgb_img)
 
         # Step 3: Scale Calibration (SRTM / GCP / Metric Fit)
         job.progress = 65
