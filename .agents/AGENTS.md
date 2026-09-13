@@ -71,6 +71,17 @@ Do NOT alter, delete, or rename these HTMX hooks between routes and templates:
 - Do NOT add unnecessary external microservices or front-end JS build steps. One FastAPI process serves everything.
 - Never delete production route trees, templates, or test datasets in `data/samples/`.
 
+### Rule 7: ML Calibration & Honest Benchmark Integrity
+- **Dual Protocol Integrity**: In `ml/evaluate.py`, always compute and report:
+  1. **Honest Frozen Global Affine** ($a=9.8105, b=33.7337\text{ m}$ in `results/global_calibration.json` fitted on 150 validation crops) as headline deployment accuracy. It must NEVER access test ground truth.
+  2. **Oracle Per-Image Fit** as the theoretical correlation ceiling.
+- **Physical Unit Contract**: Raw Depth Anything V2 outputs are dimensionless relative disparity. Never label or export uncalibrated outputs as metric meters.
+- **Loss Masking**: Custom losses in `ml/losses.py` (`ScaleShiftInvariantLoss`, `MultiScaleGradientLoss`, `CombinedDepthLoss`) must strictly filter by `valid_mask` to prevent NoData/NaN gradient explosion.
+
+### Rule 8: Multi-Biome Dataset Portability
+- **Manifest Architecture**: All training/validation/test pairs must be cataloged in `data/manifest.csv` and `data/tiles_manifest.csv` with columns: `split`, `image_file`, `dem_file`, `dataset`, `biome`.
+- **Zero Hardcoded Paths**: Always resolve dataset paths via `ml/config.py` environment variables (`POTSDAM_ROOT`, `VAIHINGEN_ROOT`, `POTSDAM_ZIP`, etc.). Never write machine-specific drive letters or user home directories into repo scripts.
+
 ---
 
 ## 3. Operational Quick Reference
@@ -79,10 +90,23 @@ Do NOT alter, delete, or rename these HTMX hooks between routes and templates:
 # 1. Run dev server:
 & "C:\Users\Administrator\AppData\Local\Programs\Python\Python313\python.exe" run.py --port 8000
 
-# 2. Run automated test suite:
+# 2. Run automated test suite (28 tests):
 pytest tests -v
 
-# 3. Compile Raylib C++ Engine to WASM (EMSDK auto-discovered):
+# 3. Run held-out test set benchmark evaluation:
+python -m ml.evaluate
+
+# 4. Fit frozen global affine calibration parameters:
+python scripts/fit_global_calibration.py
+
+# 5. Run ML training CPU smoke test:
+python -m ml.train --smoke-test --max-steps 5 --limit-batches 2
+
+# 6. Run GPU fine-tuning (RTX 4080 / 4060, fp16 AMP):
+python -m ml.train --epochs 5 --batch-size 4 --grad-accum 2 --lr 5e-5
+
+# 7. Compile Raylib C++ Engine to WASM (EMSDK auto-discovered):
 cd engine
-.\build_wasm.ps1     # or .\build_wasm.bat
+.\build_wasm.ps1     # or .\build_wasm.bat / ./build_wasm.sh
 ```
+
