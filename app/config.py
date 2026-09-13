@@ -36,8 +36,19 @@ def is_real_model_available() -> bool:
         return False
 
 
+def get_device() -> str:
+    device_env = os.getenv("DEVICE")
+    if device_env:
+        return device_env
+    try:
+        import torch
+        return "cuda" if torch.cuda.is_available() else "cpu"
+    except ImportError:
+        return "cpu"
+
+
 # Hardware Device Selection
-DEVICE = os.getenv("DEVICE", "cuda" if os.getenv("CUDA_VISIBLE_DEVICES") else "cpu")
+DEVICE = get_device()
 
 # Mesh Generation Settings
 # 160x160 grid = 25,600 vertices / 50,000 triangles (smooth 60fps WebGL/WASM target)

@@ -18,18 +18,12 @@ COLORMAP_TERRAIN = [
 ]
 
 
-def interpolate_colormap(val: float) -> Tuple[int, int, int]:
-    val = float(np.clip(val, 0.0, 1.0))
-    for i in range(len(COLORMAP_TERRAIN) - 1):
-        v0, c0 = COLORMAP_TERRAIN[i]
-        v1, c1 = COLORMAP_TERRAIN[i + 1]
-        if v0 <= val <= v1:
-            t = (val - v0) / (v1 - v0)
-            r = int(c0[0] + t * (c1[0] - c0[0]))
-            g = int(c0[1] + t * (c1[1] - c0[1]))
-            b = int(c0[2] + t * (c1[2] - c0[2]))
-            return (r, g, b)
-    return COLORMAP_TERRAIN[-1][1]
+# 256-entry RGB lookup table built from the ramp via linear interpolation
+_COLORMAP_LUT = np.stack(
+    [np.interp(np.linspace(0.0, 255.0, 256), [v * 255.0 for v, _ in COLORMAP_TERRAIN],
+               [c[i] for _, c in COLORMAP_TERRAIN]) for i in range(3)],
+    axis=1,
+).astype(np.uint8)
 
 
 def inspect_georeference(filepath: Path) -> Tuple[bool, Optional[str], Optional[Dict[str, Any]]]:
@@ -53,17 +47,6 @@ def inspect_georeference(filepath: Path) -> Tuple[bool, Optional[str], Optional[
         logger.debug("rasterio not installed; inspecting TIFF tags with PIL...")
     except Exception as e:
         logger.debug(f"rasterio open failed: {e}")
-
-    # Fallback to PIL GeoTIFF tag inspection
-    try:
-        with Image.open(filepath) as img:
-            # Check GeoTIFF known tag keys (33550 = ModelPixelScale, 33922 = ModelTiepoint, 34735 = GeoKeyDirectory)
-            tag_dict = getattr(img, "tag_v2", {}) or {}
-            has_geo_keys = any(k in tag_dict for k in (33550, 33922, 34735))
-            if has_geo_keys:
-                return True, "EPSG:4326 (GeoTIFF tags detected)", None
-    except Exception as e:
-        logger.debug(f"PIL tag inspection failed: {e}")
 
     return False, None, None
 
@@ -135,15 +118,8 @@ def generate_colorized_preview(
         norm = np.zeros_like(elevation_map)
 
     h, w = norm.shape
-    rgb_arr = np.zeros((h, w, 3), dtype=np.uint8)
-
-    # Fast color lookup table (256 entries)
-    lut = np.zeros((256, 3), dtype=np.uint8)
-    for i in range(256):
-        lut[i] = interpolate_colormap(i / 255.0)
-
     indices = (norm * 255.0).astype(np.uint8)
-    rgb_arr = lut[indices]
+    rgb_arr = _COLORMAP_LUT[indices]
 
     preview_img = Image.fromarray(rgb_arr, mode="RGB")
     preview_img.save(output_path, format="PNG")

@@ -1,0 +1,11 @@
+{
+    "protocol": "frozen_global_affine",
+    "provenance": "Fitted exclusively on validation split; frozen for held-out test evaluation",
+    "scale": 9.810477,
+    "offset_meters": 33.73373,
+    "val_crops_evaluated": 150,
+    "pooled_pixels": 750000,
+    "val_mae_meters": 4.3654,
+    "val_rmse_meters": 5.2416,
+    "val_pearson_correlation": 0.4649
+}

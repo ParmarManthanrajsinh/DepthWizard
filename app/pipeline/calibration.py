@@ -6,7 +6,6 @@ import numpy as np
 import hashlib
 from pathlib import Path
 import urllib.request
-import urllib.error
 
 from app.config import DEM_CACHE_DIR, OPENTOPOGRAPHY_API_KEY
 
@@ -75,18 +74,19 @@ def fetch_srtm_elevation_tile(
             url += f"&API_Key={OPENTOPOGRAPHY_API_KEY}"
 
         logger.info(f"Querying OpenTopography SRTM-30m tile: {url}")
-        req = urllib.request.Request(url, headers={"User-Agent": "DepthWizard-ISRO/1.0"})
-        with urllib.request.urlopen(req, timeout=3.5) as resp:
-            content = resp.read()
-            if content.startswith(b"II*\x00") or content.startswith(b"MM\x00*"):
-                cache_file.write_bytes(content)
-                logger.info(f"Successfully cached SRTM tile to {cache_file}")
-                import rasterio
-                with rasterio.open(cache_file) as src:
-                    dem = src.read(1, out_shape=target_shape, resampling=rasterio.enums.Resampling.bilinear)
-                    return dem.astype(np.float32)
-            else:
-                logger.debug("OpenTopography response was not a GeoTIFF (rate limit or API key restriction).")
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+        tmp_file, headers = urllib.request.urlretrieve(url, cache_file.with_suffix(".tmp"))
+        content = Path(tmp_file).read_bytes()
+        Path(tmp_file).unlink(missing_ok=True)
+        if content.startswith(b"II*\x00") or content.startswith(b"MM\x00*"):
+            cache_file.write_bytes(content)
+            logger.info(f"Successfully cached SRTM tile to {cache_file}")
+            import rasterio
+            with rasterio.open(cache_file) as src:
+                dem = src.read(1, out_shape=target_shape, resampling=rasterio.enums.Resampling.bilinear)
+                return dem.astype(np.float32)
+        else:
+            logger.debug("OpenTopography response was not a GeoTIFF (rate limit or API key restriction).")
     except Exception as exc:
         logger.debug(f"OpenTopography SRTM tile retrieval skipped ({exc}); falling back to local estimator.")
 
@@ -133,7 +133,9 @@ def fit_linear_scale_offset(
 
     # Ensure positive scale (higher relative elevation = higher metric elevation)
     if scale <= 0:
-        scale = abs(scale) if abs(scale) > 1e-4 else 50.0
+        scale = abs(scale) if abs(scale) > 1e-4 else 10.0
+        # Recompute offset so the calibrated mean elevation matches reference ground truth exactly
+        offset = float(np.mean(y_clean) - scale * np.mean(x_clean))
 
     predictions = scale * x_clean + offset
     residuals = predictions - y_clean
@@ -145,8 +147,11 @@ def fit_linear_scale_offset(
     if np.std(predictions) > 1e-6 and np.std(y_clean) > 1e-6:
         corr_val = float(np.corrcoef(predictions, y_clean)[0, 1])
         correlation = corr_val if np.isfinite(corr_val) else 1.0
+    elif np.std(x_clean) > 1e-6 and np.std(y_clean) > 1e-6:
+        corr_val = float(np.corrcoef(x_clean, y_clean)[0, 1])
+        correlation = corr_val if np.isfinite(corr_val) else 0.0
     else:
-        correlation = 1.0
+        correlation = 1.0 if np.allclose(predictions, y_clean) else 0.0
 
     return float(scale), float(offset), rmse, mae, correlation
 

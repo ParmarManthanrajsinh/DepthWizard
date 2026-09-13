@@ -7,7 +7,7 @@ from app.config import OUTPUTS_DIR, UPLOADS_DIR
 from app.db.models import Job, JobStatus
 from app.db.session import SessionLocal
 from app.pipeline.calibration import calibrate_elevation
-from app.pipeline.estimator import get_depth_estimator
+from app.pipeline.estimator import DepthAnythingV2Estimator, MockDepthEstimator
 from app.pipeline.geospatial import (
     generate_colorized_preview,
     inspect_georeference,
@@ -50,12 +50,8 @@ def run_pipeline_for_job(job_id: str) -> None:
 
         with Image.open(input_path) as raw_img:
             rgb_img = raw_img.convert("RGB")
-            estimator = get_depth_estimator()
-            model_label = (
-                "Depth Anything V2 (PyTorch)"
-                if estimator.__class__.__name__ == "DepthAnythingV2Estimator"
-                else "MockDepthEstimator (Synthetic Heuristic)"
-            )
+            estimator = DepthAnythingV2Estimator()
+            model_label = "Depth Anything V2 (PyTorch)"
             job.model_name = model_label
             db.commit()
             relative_depth = estimator.estimate(rgb_img)

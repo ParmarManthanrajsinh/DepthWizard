@@ -171,7 +171,39 @@ One `git clone`, one build step for the engine (`build_wasm.sh`), one `uvicorn a
 
 ---
 
-## 10. Reference Resources
+## 10. Implementation Status & Benchmark Results
+
+### 10.1 What is implemented (as of this writing)
+
+- **Module 1 (Elevation):** `DepthAnythingV2Estimator` (HuggingFace `Depth-Anything-V2-Small-hf`) with automatic `MockDepthEstimator` fallback; GeoTIFF ingest via rasterio with CRS/geotransform detection; SRTM-30m fetch via OpenTopography with disk cache; least-squares affine calibration with RMSE/MAE/Pearson reporting; sparse GCP CSV calibration; dual output paths (relative rDSM vs metric DSM GeoTIFF).
+- **Module 2 (Mesh):** heightfield triangulation, smooth vertex normals, curvature-guided crack-free decimation, UV-mapped textured `.glb` export.
+- **Module 3 (Flythrough):** raylib C++ engine compiled to WebAssembly (`.wasm`/`.js` served by the same FastAPI process); 6-DOF free-fly camera; telemetry HUD (altitude, CRS, slope); two-point height measurement probes; wireframe toggle.
+- **Module 4 (Web):** FastAPI + htmx/Jinja2 upload → job queue (SQLite/SQLAlchemy) → result partials; REST endpoints for job creation and mesh retrieval; Dockerfile.
+- **Training/eval:** `ml/train.py` (frozen DINOv2 encoder, trainable DPT head, SSI + multi-scale gradient loss, fp16 + grad accumulation), `ml/evaluate.py` (dual-protocol evaluation), `scripts/fit_global_calibration.py`.
+
+### 10.2 Benchmark methodology (leakage-controlled)
+
+Evaluated on the **ISPRS Potsdam** benchmark (RGB orthophoto + DSM). The 38 source tiles were cropped to 512×512 patches and split **by source tile** (no tile appears in more than one split): 650 train / 150 validation / 150 test crops. The headline metric uses a **frozen global affine calibration** $(a, b)$ fitted exclusively on the validation split, then applied unchanged to all test crops — zero test-time ground-truth access. A per-crop **oracle affine fit** against test reference DEMs is reported only as a diagnostic ceiling for purely affine correction of the relative representation.
+
+### 10.3 Held-out test results (150 crops, 39,321,600 valid pixels, 6 test tiles)
+
+| Metric | Frozen Global Calibration (deployment) | Oracle Affine Fit (diagnostic) |
+|---|---|---|
+| MAE | **4.0702 m** | 1.5756 m |
+| RMSE | **4.6302 m** | 2.2035 m |
+| Pearson $r$ | **+0.6469** | +0.6469 |
+| AbsRel | **0.1042** | 0.0409 |
+| $\delta_1$ | **0.9298** | 0.9820 |
+
+Artifacts: `results/evaluation.json`, `results/evaluation.csv`, `results/global_calibration.json`, `results/baseline_results.json` (committed for reproducibility).
+
+### 10.4 Known limitations (stated plainly)
+
+- Results cover a single city (Potsdam, urban biome). Vaihingen (residential) preparation is implemented; its evaluation is pending, so cross-city generalization is **not yet evidenced**.
+- Pearson $r$ of 0.647 is respectable for zero-shot pretrained relative depth + affine calibration, but below the >0.8 range reported by satellite-specialized fine-tuned models — closing that gap is the main ML roadmap item.
+- The current checkpoint comes from a short CPU smoke-run of the fine-tuning pipeline; all reported metrics come from the frozen pretrained backbone + calibration.
+
+## 11. Reference Resources
 
 - Dataset: reference repo linked in the official PS — `github.com/IMG-PROCESS-SAC/SIH2026`
 - SRTM 30m DEM: via OpenTopography API or the `elevation` Python package

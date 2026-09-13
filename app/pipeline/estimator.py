@@ -1,27 +1,13 @@
-from abc import ABC, abstractmethod
 import logging
-from typing import Optional
 import numpy as np
 from PIL import Image
 
-from app.config import DEPTH_MODEL_NAME, DEVICE, USE_MOCK_MODEL
+from app.config import DEPTH_MODEL_NAME, DEVICE
 
 logger = logging.getLogger("depthwizard.pipeline.estimator")
 
 
-class BaseDepthEstimator(ABC):
-    """Base interface for all monocular depth estimators."""
-
-    @abstractmethod
-    def estimate(self, image: Image.Image) -> np.ndarray:
-        """
-        Produce a relative depth/elevation map from a PIL Image.
-        Returns a 2D float32 numpy array normalized to [0.0, 1.0].
-        """
-        pass
-
-
-class MockDepthEstimator(BaseDepthEstimator):
+class MockDepthEstimator:
     """
     High-fidelity synthetic/heuristic depth estimator for development.
     Extracts pseudo-elevation from image luminance combined with multi-scale
@@ -58,7 +44,7 @@ class MockDepthEstimator(BaseDepthEstimator):
         return heightmap.astype(np.float32)
 
 
-class DepthAnythingV2Estimator(BaseDepthEstimator):
+class DepthAnythingV2Estimator:
     """
     Monocular depth estimation using Depth Anything V2 via HuggingFace transformers.
     Produces state-of-the-art relative depth maps for arbitrary optical scenes.
@@ -113,27 +99,14 @@ class DepthAnythingV2Estimator(BaseDepthEstimator):
             align_corners=False,
         ).squeeze().cpu().numpy()
 
-        # In depth models, smaller depth value = closer / higher elevation
-        # Invert to turn depth into heightmap: 0 = valley, 1 = peak
+        # Depth Anything V2 outputs disparity / relative inverse depth where
+        # objects closer to the top-down optical sensor (rooftops, trees, elevated terrain)
+        # naturally produce LARGER values, and lower ground / valleys produce SMALLER values.
+        # Normalize directly to [0.0, 1.0] relative height: 0.0 = low/ground, 1.0 = peak.
         d_min, d_max = float(prediction.min()), float(prediction.max())
         if d_max > d_min:
-            heightmap = 1.0 - ((prediction - d_min) / (d_max - d_min))
+            heightmap = (prediction - d_min) / (d_max - d_min)
         else:
             heightmap = np.zeros_like(prediction)
 
         return heightmap.astype(np.float32)
-
-
-def get_depth_estimator(force_mock: Optional[bool] = None) -> BaseDepthEstimator:
-    """Factory providing the active depth estimator."""
-    use_mock = force_mock if force_mock is not None else USE_MOCK_MODEL
-    if use_mock:
-        return MockDepthEstimator()
-
-    try:
-        import torch  # noqa: F401
-        import transformers  # noqa: F401
-        return DepthAnythingV2Estimator()
-    except ImportError:
-        logger.info("torch/transformers not found in environment. Using MockDepthEstimator.")
-        return MockDepthEstimator()

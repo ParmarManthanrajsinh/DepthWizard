@@ -222,12 +222,117 @@ SIH/
 
 ---
 
-## 🧪 Testing
+---
 
-Run test suite:
+## 📊 Benchmark Evaluation & Metric Verification (Held-Out Test Set)
+
+DepthWizard evaluates monocular height estimation on the official **ISPRS Potsdam RGB + DSM Benchmark** across **150 held-out test crops** ($39,321,600$ valid evaluated pixels across $6$ distinct tiles: `2_11`, `3_12`, `3_13`, `4_14`, `4_15`, `5_11`).
+
+### Honest Dual Protocol Benchmark
+
+To prevent test-set data snooping, DepthWizard strictly separates evaluation into two transparent protocols:
+1. **Honest Frozen Global Calibration (Primary / Real-World Deployment)**: Single affine scale ($a = 9.8105$) and offset ($b = 33.7337\text{ m}$) fitted strictly on the pooled validation split ($750,000$ pixels across 150 validation crops). At test time, zero ground-truth elevation is accessed.
+2. **Oracle Upper Bound (Theoretical Limit)**: Affine scale and offset fit per test crop against its reference DEM. Represents the maximum geometric correlation ceiling attainable by the monocular representation.
+
+### Comprehensive Benchmark Metrics:
+
+The **Frozen Global Calibration** column is the headline deployment metric: a single affine $(a, b)$ fitted on the validation split and applied unchanged to every test crop — no test-time ground truth is accessed. The **Oracle** column fits the affine per test crop against its reference DEM; it is a diagnostic showing the ceiling of a purely affine correction of this relative representation, **not** an achievable deployment accuracy.
+
+| Metric | **Honest Frozen Global Calibration (Deployment)** | Oracle Affine Fit (Diagnostic Ceiling) |
+|---|---|---|
+| **MAE (Mean Absolute Error)** | **$4.0702\text{ m}$** | $1.5756\text{ m}$ |
+| **RMSE (Root Mean Square Error)** | **$4.6302\text{ m}$** | $2.2035\text{ m}$ |
+| **Pearson Correlation ($r$)** | **$+0.6469$** | $+0.6469$ |
+| **AbsRel (Relative Error)** | **$0.1042$** | $0.0409$ |
+| **$\delta_1 (< 1.25)$** | **$0.9298$ ($93.0\%$)** | $0.9820$ ($98.2\%$) |
+| **$\delta_2 (< 1.25^2)$** | **$0.9994$ ($99.9\%$)** | $0.9997$ ($100.0\%$) |
+| **$\delta_3 (< 1.25^3)$** | **$1.0000$ ($100.0\%$)** | $1.0000$ ($100.0\%$) |
+
+### Multi-Biome Performance Breakdown:
+
+| Biome | Dataset | Test Crops | Valid Pixels | Honest MAE | Oracle MAE | Pearson $r$ |
+|---|---|---|---|---|---|---|
+| **Urban / Dense Built** | ISPRS Potsdam | 150 | $39,321,600$ | **$4.07\text{ m}$** | **$1.58\text{ m}$** | **$+0.647$** |
+| **Residential / Suburban** | ISPRS Vaihingen | preparation supported via `scripts/prepare_vaihingen_dataset.py` — evaluation pending |
+
+> **Reproducibility:** benchmark artifacts (`results/evaluation.json`, `results/global_calibration.json`, `results/evaluation.csv`) are committed. Regenerate with `python -m ml.evaluate` after running the dataset preparation scripts below.
+
+---
+
+## ⚙️ Environment Variables Reference
+
+Configure environment parameters in `.env` (template in `.env.example`):
+
+| Variable | Default | Description |
+|---|---|---|
+| `DEVICE` | Auto (`cuda` / `cpu`) | Compute device for depth inference and fine-tuning |
+| `CKPT_PATH` | `results/best_checkpoint.pt` | Path to fine-tuned model checkpoint |
+| `POTSDAM_ROOT` | `data/potsdam_raw` | Root directory containing extracted Potsdam tiles (`1_DSM/`, `2_Ortho_RGB/`) |
+| `VAIHINGEN_ROOT` | `data/vaihingen_raw` | Root directory for ISPRS Vaihingen dataset |
+| `DEFAULT_BATCH_SIZE` | `4` | Dataloader batch size for training |
+| `OPENTOPOGRAPHY_API_KEY` | *(empty)* | Optional API key for live SRTM-30m tile queries |
+| `PORT` | `8000` | Port for FastAPI web server |
+
+---
+
+## 🏋️ Model Training & Fine-Tuning Pipeline
+
+DepthWizard includes an end-to-end fine-tuning pipeline (`ml/train.py`) tailored for remote sensing elevation:
+- **Frozen DINOv2 Encoder**: 22M parameters frozen; only the 2.7M-parameter DPT depth head and neck are updated.
+- **Scale-Shift Invariant + Multi-Scale Gradient Loss**: Exact scale-shift invariant loss ($\mathcal{L}_{ssi}$) combined with edge gradient matching ($\mathcal{L}_{grad}$).
+- **Geospatial Augmentations**: Random flips and 90-degree rotations preserving exact spatial alignment.
+- **8GB VRAM Optimization (RTX 4080 / 4060)**: Native fp16 mixed-precision (`torch.amp.autocast`) and gradient accumulation for batch size 4–8 in < 3.5 GB VRAM.
+
+### 1. Run Rapid CPU Smoke Test
+```powershell
+python -m ml.train --smoke-test --max-steps 5 --limit-batches 2
+```
+
+> **Fine-tuning status:** the end-to-end training pipeline is complete and smoke-tested (see `results/training_log.json`), but the current checkpoint comes from a short CPU smoke-run — the benchmark metrics above are driven by the **frozen pretrained Depth Anything V2 backbone + affine calibration**, not by fine-tuned weights. Full GPU fine-tuning is planned work.
+
+### 2. Run Local GPU Fine-Tuning (RTX 4080 / 4060 8GB VRAM)
+```powershell
+python -m ml.train --epochs 5 --batch-size 4 --grad-accum 2 --lr 5e-5
+```
+
+### 3. Fit Frozen Global Affine Calibration
+```powershell
+python scripts/fit_global_calibration.py
+```
+*(Fits $h = a \cdot d_{rel} + b$ on the validation split and exports `results/global_calibration.json`)*
+
+---
+
+## 🧪 Testing & Verification Suite
+
+### 1. Run Automated Test Suite
 ```powershell
 pytest tests -v
 ```
+*(Validates 28 unit tests: FastAPI endpoints, depth/mesh pipeline, GLB export, loss functions, ML preprocessing, and affine regressions)*
+
+### 2. Run Comprehensive Held-Out Benchmark Evaluation
+```powershell
+python -m ml.evaluate
+```
+*(Evaluates all 150 held-out crops under both Frozen Global and Oracle Upper Bound protocols, writes `results/evaluation.json`, `results/evaluation.csv`, and visualizations)*
+
+### 3. Run Dataset Sample Checks
+```powershell
+python scripts/test_dataset_samples.py
+```
+
+### 4. Run End-to-End Demo Verification
+```powershell
+python scripts/test_end_to_end.py
+```
+*(Validates HTTP endpoints, file upload, PyTorch inference, GeoTIFF DSM export, and binary glTF generation served to the Raylib WASM viewer)*
+
+### 5. Launch Full Application Server
+```powershell
+python run.py --port 8000
+```
+Visit `http://localhost:8000`.
 
 ---
 

@@ -1,0 +1,101 @@
+{
+  "potsdam_root": "D:\\Datasets\\Potsdam",
+  "total_rgb_files": 38,
+  "total_dsm_files": 38,
+  "total_unique_tiles": 38,
+  "valid_pairs_count": 38,
+  "missing_rgb_count": 0,
+  "missing_dsm_count": 0,
+  "missing_rgb_tiles": [],
+  "missing_dsm_tiles": [],
+  "sample_inspections": [
+    {
+      "tile_id": "2_10",
+      "rgb_file": "top_potsdam_2_10_RGB.tif",
+      "dsm_file": "dsm_potsdam_02_10.tif",
+      "dimensions": "6000x6000",
+      "rgb_channels": 3,
+      "rgb_dtype": "uint8",
+      "dsm_channels": 1,
+      "dsm_dtype": "float32",
+      "dsm_nodata": null,
+      "crs": "EPSG:32633",
+      "dsm_min": 40.78499984741211,
+      "dsm_max": 62.05500030517578
+    },
+    {
+      "tile_id": "2_11",
+      "rgb_file": "top_potsdam_2_11_RGB.tif",
+      "dsm_file": "dsm_potsdam_02_11.tif",
+      "dimensions": "6000x6000",
+      "rgb_channels": 3,
+      "rgb_dtype": "uint8",
+      "dsm_channels": 1,
+      "dsm_dtype": "float32",
+      "dsm_nodata": null,
+      "crs": "EPSG:32633",
+      "dsm_min": 41.297000885009766,
+      "dsm_max": 46.624000549316406
+    },
+    {
+      "tile_id": "2_12",
+      "rgb_file": "top_potsdam_2_12_RGB.tif",
+      "dsm_file": "dsm_potsdam_02_12.tif",
+      "dimensions": "6000x6000",
+      "rgb_channels": 3,
+      "rgb_dtype": "uint8",
+      "dsm_channels": 1,
+      "dsm_dtype": "float32",
+      "dsm_nodata": null,
+      "crs": "EPSG:32633",
+      "dsm_min": 42.77899932861328,
+      "dsm_max": 45.4119987487793
+    },
+    {
+      "tile_id": "2_13",
+      "rgb_file": "top_potsdam_2_13_RGB.tif",
+      "dsm_file": "dsm_potsdam_02_13.tif",
+      "dimensions": "6000x6000",
+      "rgb_channels": 3,
+      "rgb_dtype": "uint8",
+      "dsm_channels": 1,
+      "dsm_dtype": "float32",
+      "dsm_nodata": null,
+      "crs": "EPSG:32633",
+      "dsm_min": 37.297000885009766,
+      "dsm_max": 44.61199951171875
+    },
+    {
+      "tile_id": "2_14",
+      "rgb_file": "top_potsdam_2_14_RGB.tif",
+      "dsm_file": "dsm_potsdam_02_14.tif",
+      "dimensions": "6000x6000",
+      "rgb_channels": 3,
+      "rgb_dtype": "uint8",
+      "dsm_channels": 1,
+      "dsm_dtype": "float32",
+      "dsm_nodata": null,
+      "crs": "EPSG:32633",
+      "dsm_min": 32.92399978637695,
+      "dsm_max": 52.93299865722656
+    }
+  ],
+  "all_pairs_verified": false,
+  "dimension_mismatches": [
+    [
+      "3_13",
+      [
+        6000,
+        6000
+      ],
+      [
+        5999,
+        6000
+      ]
+    ]
+  ],
+  "read_errors": [],
+  "crs_set": [
+    "EPSG:32633"
+  ]
+}

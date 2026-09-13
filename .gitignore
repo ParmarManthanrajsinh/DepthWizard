@@ -15,6 +15,24 @@ data/outputs/*
 !data/outputs/.gitkeep
 data/depthwizard.db
 data/depthwizard.db-journal
+data/cache/
+data/train/
+data/validation/
+data/test/
+!data/manifest.csv
+!data/tiles_manifest.csv
+
+# ML intermediate artifacts (large/derived)
+results/predictions/
+results/visualizations/
+results/alignment_check/
+
+# But keep small benchmark artifacts + visual proof in repo
+!results/*.json
+!results/*.csv
+!results/*.png
+# 120MB fine-tuned checkpoint stays out of git (distribute via Git LFS or release asset)
+results/best_checkpoint.pt
 
 # Engine / C++ Build artifacts
 engine/build/
