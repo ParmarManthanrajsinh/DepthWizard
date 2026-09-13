@@ -50,7 +50,7 @@ One monorepo, one deployable service — no separate backend/frontend hosts:
 
 ## 📋 Implementation Progress & Roadmap (SIH26175 Track)
 
-Progress tracked against the 50/50 judging split: **50% Metric DSM Accuracy** + **50% 3D Visualization & Flythrough Quality** (referenced from [`REPORT.md`](file:///e:/HackathonProjects/SIH/REPORT.md)).
+Progress tracked against the 50/50 judging split: **50% Metric DSM Accuracy** + **50% 3D Visualization & Flythrough Quality** (referenced from [`REPORT.md`](REPORT.md)).
 
 ### Current Progress (Completed)
 
@@ -86,10 +86,10 @@ Progress tracked against the 50/50 judging split: **50% Metric DSM Accuracy** + 
 - [x] **Module 4: Web Orchestration & Interface**
   - [x] Single monorepo architecture: one FastAPI process, zero microservice sprawl.
   - [x] Server-driven reactive UI using HTMX & Jinja2 partials (`upload_form.html`, `job_status.html`, `job_result.html`).
-  - [x] Real-time telemetry badges: Active depth model ("Depth Anything V2 [PyTorch]" vs "Mock Dev Mode") and calibration accuracy provenance ("Verified Ground Truth" vs "Synthetic Baseline").
+  - [x] Real-time telemetry badges: Active depth model ("Depth Anything V2 [PyTorch]" vs "Mock Dev Mode") and calibration accuracy provenance ("Verified Ground Truth" vs "Synthetic Baseline"). The model badge is derived from the latest job's recorded `model_name` — i.e. what actually ran — with an import pre-check only as fallback for empty databases.
   - [x] Async background worker execution queue with SQLite persistence via SQLAlchemy.
   - [x] Clean, aerospace telemetry design system locked in `design.md` with Hallmark anti-slop rules.
-  - [x] Full test suite with automated pipeline, API, ML losses, and WebAssembly viewer testing (`pytest tests -v`, 28/28 tests passing).
+  - [x] Full test suite with automated pipeline, API, ML losses, and WebAssembly viewer testing (`pytest tests -v`, 32/32 tests passing).
 
 ---
 
@@ -132,7 +132,7 @@ py -3.12 -m pip install -r requirements.txt
 py -3.12 run.py
 ```
 
-> **Model weights — no git files needed.** The depth model (`Depth-Anything-V2-Small-hf`) is **not stored in this repository**; it is downloaded automatically from the HuggingFace Hub (~100 MB) on first real inference and cached under `~/.cache/huggingface` for offline reuse afterwards. If the download is blocked (offline venue), the pipeline silently falls back to a synthetic `MockDepthEstimator` and the UI badge switches to "Mock Dev Mode" — every other feature still works. The fine-tuned `results/best_checkpoint.pt` is likewise gitignored and only used by the benchmark scripts (`ml/evaluate.py`); the web app never loads it.
+> **Model weights — no git files needed.** The depth model (`Depth-Anything-V2-Small-hf`) is **not stored in this repository**; it is downloaded automatically from the HuggingFace Hub (~100 MB) on first real inference and cached under `~/.cache/huggingface` for offline reuse afterwards. If the download is blocked (offline venue), the pipeline falls back to a synthetic `MockDepthEstimator` — and says so: the job is labeled `Mock Dev Mode` in the UI, and the dashboard badge reflects the latest job's *actual* model outcome, never an assumed one. Every other feature still works. The fine-tuned `results/best_checkpoint.pt` is likewise gitignored and only used by the benchmark scripts (`ml/evaluate.py`); the web app never loads it.
 
 ### 3. Open in Browser
 Visit **`http://localhost:8000/`**.
@@ -223,13 +223,13 @@ SIH/
 ## 🛠️ How to Iterate on Your Module
 
 ### Module 1: Elevation Pipeline (`app/pipeline/`)
-- **Relative depth**: Located in [`app/pipeline/estimator.py`](file:///e:/HackathonProjects/SIH/app/pipeline/estimator.py). Set `USE_MOCK_MODEL=false` to use HuggingFace weights (`Depth-Anything-V2-Small-hf` or `ZoeDepth`).
-- **Scale calibration**: Located in [`app/pipeline/calibration.py`](file:///e:/HackathonProjects/SIH/app/pipeline/calibration.py). Connect real OpenTopography or SRTM-30m tiles for georeferenced GeoTIFFs to compute benchmark RMSE and MAE against ground truth.
+- **Relative depth**: Located in [`app/pipeline/estimator.py`](app/pipeline/estimator.py). Set `USE_MOCK_MODEL=false` to use HuggingFace weights (`Depth-Anything-V2-Small-hf` or `ZoeDepth`).
+- **Scale calibration**: Located in [`app/pipeline/calibration.py`](app/pipeline/calibration.py). Connect real OpenTopography or SRTM-30m tiles for georeferenced GeoTIFFs to compute benchmark RMSE and MAE against ground truth.
 
 ### Module 2: Heightmap to Mesh (`app/pipeline/mesh_builder.py`)
 - Takes 2D array and source RGB image.
-- Uses [`generate_terrain_mesh()`](file:///e:/HackathonProjects/SIH/app/pipeline/mesh_builder.py) to triangulate and compute smooth vertex normals.
-- [`export_pure_glb()`](file:///e:/HackathonProjects/SIH/app/pipeline/mesh_builder.py) writes self-contained binary glTF with embedded UV-mapped image texture. Adjust `MESH_GRID_RESOLUTION` in `app/config.py` to balance polygon density with 60 FPS flight speed.
+- Uses [`generate_terrain_mesh()`](app/pipeline/mesh_builder.py) to triangulate and compute smooth vertex normals.
+- [`export_pure_glb()`](app/pipeline/mesh_builder.py) writes self-contained binary glTF with embedded UV-mapped image texture. Adjust `MESH_GRID_RESOLUTION` in `app/config.py` to balance polygon density with 60 FPS flight speed.
 
 ### Module 3: Raylib Flythrough (`engine/`)
 - **Native compilation**:
@@ -249,7 +249,7 @@ SIH/
 
 ### Module 4: UI & API (`app/templates/`, `app/routes/`)
 - Uses **htmx**: No Node.js build step needed. Forms submit via `hx-post="/api/jobs"`, and progress updates via polling `hx-get="/jobs/{id}/status"`.
-- All CSS styles live in [`app/static/css/style.css`](file:///e:/HackathonProjects/SIH/app/static/css/style.css).
+- All CSS styles live in [`app/static/css/style.css`](app/static/css/style.css).
 
 ---
 
@@ -302,6 +302,8 @@ Configure environment parameters in `.env` (template in `.env.example`):
 | `VAIHINGEN_ROOT` | `data/vaihingen_raw` | Root directory for ISPRS Vaihingen dataset |
 | `DEFAULT_BATCH_SIZE` | `4` | Dataloader batch size for training |
 | `OPENTOPOGRAPHY_API_KEY` | *(empty)* | Optional API key for live SRTM-30m tile queries |
+| `DEPTH_MODEL_NAME` | `depth-anything/Depth-Anything-V2-Small-hf` | HuggingFace model ID used for depth inference |
+| `USE_MOCK_MODEL` | `false` | Force the synthetic `MockDepthEstimator` for offline dev; jobs are explicitly labeled `Mock Dev Mode` |
 | `PORT` | `8000` | Port for FastAPI web server |
 
 ---
@@ -340,7 +342,7 @@ python scripts/fit_global_calibration.py
 ```powershell
 pytest tests -v
 ```
-*(Validates 28 unit tests: FastAPI endpoints, depth/mesh pipeline, GLB export, loss functions, ML preprocessing, and affine regressions)*
+*(Validates 32 unit tests: FastAPI endpoints, depth/mesh pipeline, honest model-fallback labeling, GLB export, loss functions, ML preprocessing, and affine regressions)*
 
 ### 2. Run Comprehensive Held-Out Benchmark Evaluation
 ```powershell

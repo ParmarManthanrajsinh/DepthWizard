@@ -130,5 +130,5 @@ Comparison of current DepthWizard implementation against official ISRO specifica
 ## 4. Next Step Recommendation
 
 Begin with **Phase 1 (Optical Texture Projection)**:
-1. Update [`engine/src/terrain.cpp`](file:///e:/HackathonProjects/SIH/engine/src/terrain.cpp) to sample the embedded texture so satellite imagery directly drapes over the 3D terrain.
+1. Update [`engine/src/terrain.cpp`](engine/src/terrain.cpp) to sample the embedded texture so satellite imagery directly drapes over the 3D terrain.
 2. Recompile WASM via `build_wasm.ps1` and verify live in the browser.
