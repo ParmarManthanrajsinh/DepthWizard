@@ -7,7 +7,7 @@ from app.config import OUTPUTS_DIR, UPLOADS_DIR
 from app.db.models import Job, JobStatus
 from app.db.session import SessionLocal
 from app.pipeline.calibration import calibrate_elevation
-from app.pipeline.estimator import get_depth_estimator
+from app.pipeline.estimator import DepthAnythingV2Estimator, MockDepthEstimator, get_depth_estimator
 from app.pipeline.geospatial import (
     generate_colorized_preview,
     inspect_georeference,
@@ -48,17 +48,43 @@ def run_pipeline_for_job(job_id: str) -> None:
         job.current_step = "Estimating depth map..."
         db.commit()
 
-        with Image.open(input_path) as raw_img:
-            rgb_img = raw_img.convert("RGB")
-            estimator = get_depth_estimator()
-            model_label = (
-                "DepthWizard-05-R1 (exp05_r1/best.pt)"
-                if estimator.__class__.__name__ == "DepthWizard03BEstimator"
-                else "MockDepthEstimator (Synthetic Heuristic)"
-            )
-            job.model_name = model_label
-            db.commit()
-            metric_agl = estimator.estimate(rgb_img)
+        # Safely load RGB image or single-band elevation GeoTIFF
+        try:
+            import rasterio
+            with rasterio.open(input_path) as src:
+                if src.count == 1:
+                    import numpy as np
+                    raw_band = src.read(1).astype(np.float32)
+                    if src.nodata is not None:
+                        raw_band[raw_band == src.nodata] = np.nan
+                    b_min, b_max = float(np.nanmin(raw_band)), float(np.nanmax(raw_band))
+                    if b_max > b_min:
+                        norm_band = np.clip((raw_band - b_min) / (b_max - b_min), 0.0, 1.0)
+                    else:
+                        norm_band = np.zeros_like(raw_band)
+                    rgb_img = Image.fromarray((norm_band * 255.0).astype(np.uint8)).convert("RGB")
+                else:
+                    with Image.open(input_path) as raw_img:
+                        rgb_img = raw_img.convert("RGB")
+        except Exception:
+            with Image.open(input_path) as raw_img:
+                rgb_img = raw_img.convert("RGB")
+
+        estimator = get_depth_estimator()
+        metric_agl = estimator.estimate(rgb_img)
+
+        # model_name derived AFTER estimate() from actual outcome, never assumed.
+        if estimator.used_fallback or isinstance(estimator, MockDepthEstimator):
+            model_label = "Mock Dev Mode"
+        elif estimator.__class__.__name__ == "DepthWizard03BEstimator" and not getattr(
+            estimator, "used_pretrained_fallback", False
+        ):
+            model_label = "DepthWizard-05-R1 (fine-tuned)"
+        else:
+            model_label = "Depth Anything V2 (pretrained, fallback)"
+
+        job.model_name = model_label
+        db.commit()
 
         # Ex04B: Semantic / Object Exclusion for Terrain Reconstruction
         # DISABLED in production — ablation study (EXPERIMENT_04B_REPORT.md) showed
@@ -157,6 +183,7 @@ def run_pipeline_for_job(job_id: str) -> None:
         job.progress = 100
         job.status = JobStatus.COMPLETED.value
         job.current_step = "Completed"
+        job.error_message = None
         job.completed_at = datetime.now(timezone.utc)
         db.commit()
         logger.info(f"Job {job_id} successfully completed.")
@@ -166,6 +193,12 @@ def run_pipeline_for_job(job_id: str) -> None:
         job.status = JobStatus.FAILED.value
         job.current_step = "Failed"
         job.error_message = str(e)
+        # Never leave a success-implying label on a job with no real result.
+        # model_label only exists when estimate() completed; otherwise mark miss.
+        try:
+            model_label  # noqa: B018
+        except NameError:
+            job.model_name = "Failed before inference"
         db.commit()
     finally:
         db.close()

@@ -86,7 +86,7 @@ Progress tracked against the 50/50 judging split: **50% Metric DSM Accuracy** + 
 - [x] **Module 4: Web Orchestration & Interface**
   - [x] Single monorepo architecture: one FastAPI process, zero microservice sprawl.
   - [x] Server-driven reactive UI using HTMX & Jinja2 partials (`upload_form.html`, `job_status.html`, `job_result.html`).
-  - [x] Real-time telemetry badges: Active depth model ("Depth Anything V2 [PyTorch]" vs "Mock Dev Mode") and calibration accuracy provenance ("Verified Ground Truth" vs "Synthetic Baseline"). The model badge is derived from the latest job's recorded `model_name` — i.e. what actually ran — with an import pre-check only as fallback for empty databases.
+  - [x] Real-time telemetry badges: Active depth model ("DepthWizard-05-R1 [Fine-Tuned]" vs "Depth Anything V2 [Pretrained]" vs "Mock Estimator [Dev Mode]"). The model badge is derived from the latest *completed* job's recorded `model_name` — i.e. what actually ran, failed jobs never move it — with an import pre-check only as fallback for empty databases.
   - [x] Async background worker execution queue with SQLite persistence via SQLAlchemy.
   - [x] Clean, aerospace telemetry design system locked in `design.md` with Hallmark anti-slop rules.
   - [x] Full test suite with automated pipeline, API, ML losses, and WebAssembly viewer testing (`pytest tests -v`, 32/32 tests passing).
@@ -132,7 +132,7 @@ py -3.12 -m pip install -r requirements.txt
 py -3.12 run.py
 ```
 
-> **Model weights — no git files needed.** The depth model (`Depth-Anything-V2-Small-hf`) is **not stored in this repository**; it is downloaded automatically from the HuggingFace Hub (~100 MB) on first real inference and cached under `~/.cache/huggingface` for offline reuse afterwards. If the download is blocked (offline venue), the pipeline falls back to a synthetic `MockDepthEstimator` — and says so: the job is labeled `Mock Dev Mode` in the UI, and the dashboard badge reflects the latest job's *actual* model outcome, never an assumed one. Every other feature still works. The fine-tuned `results/best_checkpoint.pt` is likewise gitignored and only used by the benchmark scripts (`ml/evaluate.py`); the web app never loads it.
+> **Model weights — fine-tuned checkpoint optional.** Production default is the fine-tuned `DepthWizard-05-R1` checkpoint at `checkpoints/exp05_r1/best.pt` (gitignored, local-only). Copy it there to enable the fine-tuned path. When that file is absent, `get_depth_estimator()` falls back to the zero-shot pretrained `Depth-Anything-V2-Small-hf`, downloaded automatically from the HuggingFace Hub (~100 MB) and cached under `~/.cache/huggingface`. If that download is blocked (offline venue), the pipeline falls back to a synthetic `MockDepthEstimator` — and says so: each job is labeled after inference as `DepthWizard-05-R1 (fine-tuned)` vs `Depth Anything V2 (pretrained, fallback)` vs `Mock Dev Mode`, and the dashboard badge reflects the latest *completed* job's actual outcome, never an assumed one. Every other feature still works. Benchmark-only weights such as `results/best_checkpoint.pt` are never loaded by the web app.
 
 ### 3. Open in Browser
 Visit **`http://localhost:8000/`**.
@@ -192,11 +192,12 @@ SIH/
 │   ├── samples/                  # Pre-packaged sample optical images & GeoTIFFs
 │   ├── uploads/                  # Raw user uploads
 │   └── outputs/                  # Calibrated DSMs (.tif) and 3D meshes (.glb)
-├── results/                      # Frozen benchmark models & evaluation outputs
+├── results/                      # Benchmark models & evaluation outputs (evaluation artifacts tracked; *.pt weights gitignored)
 │   ├── global_calibration.json   # Frozen honest global affine (a=9.8105, b=33.7337m)
-│   ├── evaluation.json           # Dual-protocol 150-test-crop quantitative results
-│   ├── evaluation.csv            # Per-crop RMSE, MAE, correlation breakdown
-│   ├── best_checkpoint.pt        # Fine-tuned weights (gitignored — not in repo)
+│   ├── evaluation.json           # Dual-protocol 150-test-crop quantitative results (tracked)
+│   ├── evaluation.csv            # Per-crop RMSE, MAE, correlation breakdown (tracked)
+│   ├── potsdam_validation_report.json # Potsdam validation evidence cited by REPORT.md (tracked)
+│   ├── best_checkpoint.pt        # Legacy benchmark weights (gitignored — not in repo; web app uses checkpoints/exp05_r1/best.pt)
 │   └── training_log.json         # Fine-tuning training telemetry log
 ├── tests/
 │   ├── test_pipeline.py          # Pipeline unit tests (depth, mesh, GLB)
@@ -297,7 +298,7 @@ Configure environment parameters in `.env` (template in `.env.example`):
 | Variable | Default | Description |
 |---|---|---|
 | `DEVICE` | Auto (`cuda` / `cpu`) | Compute device for depth inference and fine-tuning |
-| `CKPT_PATH` | `results/best_checkpoint.pt` | Path to fine-tuned model checkpoint |
+| `CKPT_PATH` | `checkpoints/exp05_r1/best.pt` | Path to fine-tuned DepthWizard-05-R1 checkpoint (optional; when missing, web app uses pretrained Depth Anything V2 fallback) |
 | `POTSDAM_ROOT` | `data/potsdam_raw` | Root directory containing extracted Potsdam tiles (`1_DSM/`, `2_Ortho_RGB/`) |
 | `VAIHINGEN_ROOT` | `data/vaihingen_raw` | Root directory for ISPRS Vaihingen dataset |
 | `DEFAULT_BATCH_SIZE` | `4` | Dataloader batch size for training |
@@ -321,9 +322,9 @@ DepthWizard includes an end-to-end fine-tuning pipeline (`ml/train.py`) tailored
 python -m ml.train --smoke-test --max-steps 5 --limit-batches 2
 ```
 
-> **Fine-tuning status:** the end-to-end training pipeline is complete and smoke-tested (see `results/training_log.json`), but the current checkpoint comes from a short CPU smoke-run — the benchmark metrics above are driven by the **frozen pretrained Depth Anything V2 backbone + affine calibration**, not by fine-tuned weights. Full GPU fine-tuning is planned work.
+> **Fine-tuning status:** the end-to-end training pipeline is complete and smoke-tested (see `results/training_log.json`). The web app's default production path is the fine-tuned `checkpoints/exp05_r1/best.pt` (EX05-R1) when present, with automatic fallback to the frozen pretrained Depth Anything V2 backbone + affine calibration when it is absent. The benchmark table below reports the frozen-pretrained deployment baseline; fine-tuned EX05-R1 deltas are tracked in `EXPERIMENT_05_R1_REPORT.md`. Full GPU fine-tuning remains planned work.
 
-### 2. Run Local GPU Fine-Tuning (RTX 4080 / 4060 8GB VRAM)
+### 2. Run Local GPU Fine-Tuning (RTX 4060 8GB VRAM)
 ```powershell
 python -m ml.train --epochs 5 --batch-size 4 --grad-accum 2 --lr 5e-5
 ```

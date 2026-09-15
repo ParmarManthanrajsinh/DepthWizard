@@ -204,7 +204,8 @@ class TestElevationPipeline(unittest.TestCase):
             "model_label must be derived after estimate() reports its outcome",
         )
         self.assertIn('model_label = "Mock Dev Mode"', source)
-        self.assertIn('model_label = "Depth Anything V2 (PyTorch)"', source)
+        self.assertIn('model_label = "DepthWizard-05-R1 (fine-tuned)"', source)
+        self.assertIn('model_label = "Depth Anything V2 (pretrained, fallback)"', source)
         self.assertIn("estimator.used_fallback", source)
 
     def test_compute_slope_profile(self):

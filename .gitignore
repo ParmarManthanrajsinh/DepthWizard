@@ -31,7 +31,15 @@ engine/bin/
 # Large local experiment files
 checkpoints/
 outputs/
-results/
+results/*
+!results/.gitkeep
+# Evaluation evidence cited by REPORT.md must stay tracked
+!results/evaluation.json
+!results/evaluation.csv
+!results/global_calibration.json
+!results/potsdam_validation_report.json
+!results/baseline_results.json
+!results/training_log.json
 
 # Local datasets - do not upload to GitHub
 data/GAMUS/
