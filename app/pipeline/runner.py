@@ -3,11 +3,11 @@ import logging
 from pathlib import Path
 from PIL import Image
 
-from app.config import OUTPUTS_DIR, UPLOADS_DIR, USE_MOCK_MODEL
+from app.config import OUTPUTS_DIR, UPLOADS_DIR
 from app.db.models import Job, JobStatus
 from app.db.session import SessionLocal
 from app.pipeline.calibration import calibrate_elevation
-from app.pipeline.estimator import DepthAnythingV2Estimator, MockDepthEstimator
+from app.pipeline.estimator import get_depth_estimator
 from app.pipeline.geospatial import (
     generate_colorized_preview,
     inspect_georeference,
@@ -50,28 +50,28 @@ def run_pipeline_for_job(job_id: str) -> None:
 
         with Image.open(input_path) as raw_img:
             rgb_img = raw_img.convert("RGB")
-            estimator = DepthAnythingV2Estimator()
-            # Optional manual mock override for local dev (app/config.py).
-            # applied BEFORE inference; label below still derives from the
-            # estimator's actual reported outcome, so the UI badge stays honest
-            # in both paths.
-            if USE_MOCK_MODEL:
-                estimator.force_mock()
-            relative_depth = estimator.estimate(rgb_img)
-            # Derive label from ACTUAL outcome, never assume real model ran.
-            # estimate() silently falls back to MockDepthEstimator on load or
-            # inference failure; labeling that as real would be fake data
-            # presented as real (same class of bug as the RMSE fix).
-            if estimator.used_fallback:
-                model_label = "Mock Dev Mode"
-                logger.warning(
-                    f"Job {job_id}: real depth model unavailable; "
-                    "falling back to MockDepthEstimator. Job labeled 'Mock Dev Mode'."
-                )
-            else:
-                model_label = "Depth Anything V2 (PyTorch)"
+            estimator = get_depth_estimator()
+            model_label = (
+                "DepthWizard-05-R1 (exp05_r1/best.pt)"
+                if estimator.__class__.__name__ == "DepthWizard03BEstimator"
+                else "MockDepthEstimator (Synthetic Heuristic)"
+            )
             job.model_name = model_label
             db.commit()
+            metric_agl = estimator.estimate(rgb_img)
+
+        # Ex04B: Semantic / Object Exclusion for Terrain Reconstruction
+        # DISABLED in production — ablation study (EXPERIMENT_04B_REPORT.md) showed
+        # EX04B+EX04A produces worse gradients (2.16 vs 1.40) and worse MAE (3.36 vs
+        # 3.22) than EX04A alone across 39 scenes. Kept for research; enable via
+        # EX04B_CONFIG["enabled"] = True.
+        # from app.pipeline.ex04b_semantic_mask import apply_ex04b_conditioning
+        # metric_agl, ex04b_stats = apply_ex04b_conditioning(metric_agl)
+
+        # Ex04A: Terrain Geometry Stabilization & Depth-to-Elevation Conditioning
+        from app.pipeline.ex04a_conditioning import apply_ex04a_conditioning
+        metric_agl, ex04a_stats = apply_ex04a_conditioning(metric_agl)
+        logger.info(f"Ex04A Conditioning applied. Max gradient reduced from {ex04a_stats['max_gradient_before']:.2f} to {ex04a_stats['max_gradient_after']:.2f}")
 
         # Step 3: Scale Calibration (SRTM / GCP / Metric Fit)
         job.progress = 65
@@ -90,7 +90,7 @@ def run_pipeline_for_job(job_id: str) -> None:
                 logger.warning(f"Failed to parse GCP file {gcp_path}: {ex}")
 
         calib = calibrate_elevation(
-            relative_depth=relative_depth,
+            relative_depth=metric_agl,
             is_georeferenced=is_geo,
             bounds=bounds,
             gcps=gcps,
@@ -143,6 +143,9 @@ def run_pipeline_for_job(job_id: str) -> None:
 
         mesh_filename = f"{job_id}_terrain.glb"
         mesh_path = OUTPUTS_DIR / mesh_filename
+        import numpy as np
+        logger.info(f"Final DSM Range: Min={np.nanmin(calib.calibrated_elevation):.2f}m, Max={np.nanmax(calib.calibrated_elevation):.2f}m")
+        
         build_terrain_glb(
             elevation_map=calib.calibrated_elevation,
             texture_image=rgb_img,

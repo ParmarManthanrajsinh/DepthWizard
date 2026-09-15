@@ -20,12 +20,15 @@
     </a>
     <span class="nav-tagline">MONOCULAR DSM SYNTHESIS &amp; 3D TERRAIN FLYTHROUGH</span>
     <div style="display: flex; align-items: center; gap: var(--space-xs);">
-      <span
-        class="card-badge"
-        style="font-size: 0.72rem; letter-spacing: 0.04em; {% if active_model_is_real %}background: rgba(0, 230, 153, 0.12); border: 1px solid #00e699; color: #00e699;{% else %}background: rgba(255, 204, 0, 0.12); border: 1px solid var(--color-amber); color: var(--color-amber);{% endif %}"
-        title="{{ 'PyTorch Depth Anything V2 Active' if active_model_is_real else 'Fast Heuristic Dev Estimator' }}">
-        {{ active_model_name }}
-      </span>
+      {% if active_model_is_real %}
+        <span class="card-badge" style="background: rgba(0, 230, 153, 0.12); border: 1px solid #00e699; color: #00e699; font-size: 0.72rem; letter-spacing: 0.04em;" title="PyTorch Depth Anything V2 Active">
+          DEPTH ANYTHING V2 [PYTORCH]
+        </span>
+      {% else %}
+        <span class="card-badge" style="background: rgba(255, 204, 0, 0.12); border: 1px solid var(--color-amber); color: var(--color-amber); font-size: 0.72rem; letter-spacing: 0.04em;" title="Fast Heuristic Dev Estimator">
+          MOCK ESTIMATOR [DEV MODE]
+        </span>
+      {% endif %}
     </div>
     <nav class="nav-links">
       <a href="/" class="nav-link">CONSOLE</a>

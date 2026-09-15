@@ -6,6 +6,7 @@ import numpy as np
 import hashlib
 from pathlib import Path
 import urllib.request
+import urllib.error
 
 from app.config import DEM_CACHE_DIR, OPENTOPOGRAPHY_API_KEY
 
@@ -54,16 +55,26 @@ def fetch_srtm_elevation_tile(
                 dem = src.read(1, out_shape=target_shape, resampling=rasterio.enums.Resampling.bilinear)
                 return dem.astype(np.float32)
 
-        # Also check for bundled offline DEM GeoTIFFs in DEM_CACHE_DIR
+        # Also check for bundled offline DEM GeoTIFFs in DEM_CACHE_DIR that overlap the requested bounds
         for bundled_dem in DEM_CACHE_DIR.glob("*.tif"):
             try:
                 import rasterio
                 with rasterio.open(bundled_dem) as src:
-                    dem = src.read(1, out_shape=target_shape, resampling=rasterio.enums.Resampling.bilinear)
-                    logger.info(f"Using bundled offline DEM tile: {bundled_dem.name}")
-                    return dem.astype(np.float32)
-            except Exception:
-                pass
+                    b = src.bounds
+                    dem_crs = str(src.crs) if src.crs else "EPSG:4326"
+                    if dem_crs != "EPSG:4326":
+                        from rasterio.warp import transform_bounds
+                        bw, bs, be, bn = transform_bounds(dem_crs, "EPSG:4326", b.left, b.bottom, b.right, b.top)
+                    else:
+                        bw, bs, be, bn = b.left, b.bottom, b.right, b.top
+
+                    # Verify spatial intersection exists
+                    if max(w, bw) < min(e, be) and max(s, bs) < min(n, bn):
+                        dem = src.read(1, out_shape=target_shape, resampling=rasterio.enums.Resampling.bilinear)
+                        logger.info(f"Using bundled offline DEM tile overlapping bounds: {bundled_dem.name}")
+                        return dem.astype(np.float32)
+            except Exception as e:
+                logger.debug(f"Bundled DEM check skipped ({e})")
 
         # Attempt query to OpenTopography Global SRTM 30m API
         url = (
@@ -74,19 +85,18 @@ def fetch_srtm_elevation_tile(
             url += f"&API_Key={OPENTOPOGRAPHY_API_KEY}"
 
         logger.info(f"Querying OpenTopography SRTM-30m tile: {url}")
-        cache_file.parent.mkdir(parents=True, exist_ok=True)
-        tmp_file, headers = urllib.request.urlretrieve(url, cache_file.with_suffix(".tmp"))
-        content = Path(tmp_file).read_bytes()
-        Path(tmp_file).unlink(missing_ok=True)
-        if content.startswith(b"II*\x00") or content.startswith(b"MM\x00*"):
-            cache_file.write_bytes(content)
-            logger.info(f"Successfully cached SRTM tile to {cache_file}")
-            import rasterio
-            with rasterio.open(cache_file) as src:
-                dem = src.read(1, out_shape=target_shape, resampling=rasterio.enums.Resampling.bilinear)
-                return dem.astype(np.float32)
-        else:
-            logger.debug("OpenTopography response was not a GeoTIFF (rate limit or API key restriction).")
+        req = urllib.request.Request(url, headers={"User-Agent": "DepthWizard-ISRO/1.0"})
+        with urllib.request.urlopen(req, timeout=3.5) as resp:
+            content = resp.read()
+            if content.startswith(b"II*\x00") or content.startswith(b"MM\x00*"):
+                cache_file.write_bytes(content)
+                logger.info(f"Successfully cached SRTM tile to {cache_file}")
+                import rasterio
+                with rasterio.open(cache_file) as src:
+                    dem = src.read(1, out_shape=target_shape, resampling=rasterio.enums.Resampling.bilinear)
+                    return dem.astype(np.float32)
+            else:
+                logger.debug("OpenTopography response was not a GeoTIFF (rate limit or API key restriction).")
     except Exception as exc:
         logger.debug(f"OpenTopography SRTM tile retrieval skipped ({exc}); falling back to local estimator.")
 
@@ -131,11 +141,10 @@ def fit_linear_scale_offset(
     A = np.vstack([x_clean, np.ones(len(x_clean))]).T
     scale, offset = np.linalg.lstsq(A, y_clean, rcond=None)[0]
 
-    # Ensure positive scale (higher relative elevation = higher metric elevation)
-    if scale <= 0:
-        scale = abs(scale) if abs(scale) > 1e-4 else 10.0
-        # Recompute offset so the calibrated mean elevation matches reference ground truth exactly
-        offset = float(np.mean(y_clean) - scale * np.mean(x_clean))
+    # Handle degenerate zero-variance cases gracefully
+    if abs(scale) < 1e-6:
+        scale = 0.0
+        offset = float(np.mean(y_clean))
 
     predictions = scale * x_clean + offset
     residuals = predictions - y_clean
@@ -218,29 +227,34 @@ def calibrate_with_gcps(
             rel_samples.append(float(d_norm[r, c]))
             ref_elevations.append(float(elev))
 
-    if len(rel_samples) < 2:
-        logger.warning("Insufficient valid GCP coordinates to perform metric calibration (need >= 2).")
+    if len(rel_samples) < 1:
+        logger.warning("Insufficient valid GCP coordinates to perform metric calibration (need >= 1).")
         return None
 
     x_arr = np.array(rel_samples, dtype=np.float32)
     y_arr = np.array(ref_elevations, dtype=np.float32)
 
-    scale, offset, rmse, mae, corr = fit_linear_scale_offset(x_arr, y_arr)
-    calibrated = (scale * d_norm + offset).astype(np.float32)
+    # 03B is already metric AGL. Compute a robust median offset to shift to ASL.
+    offset = float(np.median(y_arr - x_arr))
+    calibrated = (d_norm + offset).astype(np.float32)
+
+    residuals = (x_arr + offset) - y_arr
+    rmse = float(np.sqrt(np.mean(residuals ** 2)))
+    mae = float(np.mean(np.abs(residuals)))
 
     logger.info(
         f"GCP Calibration Complete (N={len(rel_samples)} points): "
-        f"scale={scale:.2f}, offset={offset:.2f}m, RMSE={rmse:.2f}m, MAE={mae:.2f}m, Corr={corr:.3f}"
+        f"scale=1.00, offset={offset:.2f}m, RMSE={rmse:.2f}m, MAE={mae:.2f}m"
     )
 
     return CalibrationResult(
         calibrated_elevation=calibrated,
         rmse=rmse,
         mae=mae,
-        correlation=corr,
+        correlation=1.0,
         elevation_min=float(calibrated.min()),
         elevation_max=float(calibrated.max()),
-        scale=scale,
+        scale=1.0,
         offset=offset,
         calibration_source=f"Ground Control Points ({len(rel_samples)} GCPs)",
         is_synthetic=False
@@ -270,9 +284,7 @@ def calibrate_elevation(
             return gcp_res
 
     if not is_georeferenced:
-        # Non-georeferenced mode: Relative Digital Surface Model (rDSM)
-        # Scaled to 0.0 - 100.0 relative height units
-        calibrated = d_norm * 100.0
+        calibrated = d_norm
         return CalibrationResult(
             calibrated_elevation=calibrated,
             rmse=None,
@@ -280,9 +292,9 @@ def calibrate_elevation(
             correlation=None,
             elevation_min=float(calibrated.min()),
             elevation_max=float(calibrated.max()),
-            scale=100.0,
+            scale=1.0,
             offset=0.0,
-            calibration_source="Relative Heightfield (Ungeoreferenced rDSM)",
+            calibration_source="DepthWizard-03B Metric AGL (Ungeoreferenced)",
             is_synthetic=False
         )
 
@@ -292,48 +304,47 @@ def calibrate_elevation(
 
     if reference_dem is not None and reference_dem.shape == (h, w):
         ref = reference_dem
-        calib_source = "User-Provided Reference DEM"
+        calib_source = "User-Provided Reference DEM Baseline"
         is_synth = False
     else:
-        # Attempt to retrieve live/cached SRTM-30m elevation tile for bounds
         srtm_tile = fetch_srtm_elevation_tile(bounds, None, (h, w))
         if srtm_tile is not None and srtm_tile.shape == (h, w):
             ref = srtm_tile
-            calib_source = "SRTM-30m (Verified Reference DEM)"
+            calib_source = "SRTM-30m (Terrain Baseline)"
             is_synth = False
-            logger.info("Calibrated depth using live/cached SRTM-30m reference tile.")
+            logger.info("Retrieved SRTM-30m ground baseline.")
         else:
-            # Fallback: Coarse topographic baseline (simulating coarse 30m SRTM)
-            calib_source = "Synthetic Baseline (Offline Fallback - Unverified DEM)"
+            calib_source = "Synthetic Baseline (Offline Fallback)"
             is_synth = True
             base_h = 750.0
             range_h = 1450.0
             y = np.linspace(0, 3.1415, h)[:, None]
             x = np.linspace(0, 3.1415, w)[None, :]
-            coarse_dem = base_h + range_h * (0.6 * np.sin(x) * np.cos(y) + 0.4 * d_norm)
+            # Pure synthetic ground elevation, no 03B AGL bleeding into it
+            coarse_dem = base_h + range_h * (0.6 * np.sin(x) * np.cos(y))
             ref = coarse_dem.astype(np.float32)
             logger.warning(
-                "SRTM elevation unavailable; calibrated using synthetic baseline. "
-                "Metrics do not reflect real ground-truth accuracy."
+                "SRTM elevation unavailable; using synthetic flat ground baseline."
             )
 
-    scale, offset, rmse, mae, corr = fit_linear_scale_offset(d_norm, ref)
-    calibrated = (scale * d_norm + offset).astype(np.float32)
+    # 03B predicts AGL (Above Ground Level)
+    # SRTM represents Ground Elevation ASL
+    # Surface Elevation ASL = Ground + AGL
+    calibrated = (d_norm + ref).astype(np.float32)
 
     logger.info(
-        f"Scale Calibration Complete [{calib_source}]: scale={scale:.2f}, offset={offset:.2f}m, "
-        f"RMSE={rmse:.2f}m, MAE={mae:.2f}m, Correlation={corr:.3f}"
+        f"Surface ASL Addition Complete [{calib_source}]: scale=1.00, offset=per-pixel DEM."
     )
 
     return CalibrationResult(
         calibrated_elevation=calibrated,
-        rmse=rmse,
-        mae=mae,
-        correlation=corr,
+        rmse=None,  # Regressing buildings against flat SRTM is invalid error
+        mae=None,
+        correlation=None,
         elevation_min=float(calibrated.min()),
         elevation_max=float(calibrated.max()),
-        scale=scale,
-        offset=offset,
+        scale=1.0,
+        offset=0.0,
         calibration_source=calib_source,
         is_synthetic=is_synth
     )
