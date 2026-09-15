@@ -23,6 +23,7 @@ public:
     bool bIsLoaded;
     float TerrainMinY;
     float TerrainMaxY;
+    float TerrainLowP10;
     ETerrainRenderMode RenderMode;
     int32_t RenderModeLoc;
     int32_t CamPosLoc;
@@ -99,9 +100,14 @@ public:
     float GetGroundHeightOr(float InX, float InZ, float InFallbackY) const;
 
     /**
-     * Min/max Y sampled from loaded mesh vertices. Valid only when loaded.
-     * Used by the ocean to adapt the water level per tile so legacy flat
-     * meshes do not render broadly submerged.
+     * 10th percentile of interior (|x|,|z| <= 240) vertex heights, cached at
+     * load. The ocean floats the sea just below it so legacy flat meshes do
+     * not render broadly submerged. False when nothing is loaded.
      */
-    void GetMinMaxY(float& OutMinY, float& OutMaxY) const { OutMinY = TerrainMinY; OutMaxY = TerrainMaxY; }
+    bool GetLowlandP10(float& OutP10) const
+    {
+        if (!bIsLoaded) return false;
+        OutP10 = TerrainLowP10;
+        return true;
+    }
 };

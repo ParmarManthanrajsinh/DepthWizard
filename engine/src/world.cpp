@@ -1,7 +1,6 @@
 #include "world.h"
 #include "rlgl.h"
 #include "raymath.h"
-#include <algorithm>
 #include <cmath>
 #include <cstdint>
 
@@ -25,8 +24,8 @@
 
 FWorldDressing::FWorldDressing()
     : Time(0.0f)
-    , WaterLevelY(kDefaultWaterLevelY)
-    , SeabedLevelY(kDefaultSeabedLevelY)
+    , WaterLevelY(kWaterLevelY)
+    , SeabedLevelY(kSeabedLevelY)
     , WaterModel({ 0 })
     , WaterShader({ 0 })
     , SeabedModel({ 0 })
@@ -104,11 +103,6 @@ void FWorldDressing::BuildPlanes()
     }
     SeabedModel = LoadModelFromMesh(SeabedMesh);
 
-    ApplyWaterLevel();
-}
-
-void FWorldDressing::ApplyWaterLevel()
-{
     // Re-attach already-compiled shaders to the rebuilt models.
     if (WaterShader.id > 0)
     {
@@ -129,18 +123,13 @@ void FWorldDressing::ApplyWaterLevel()
 void FWorldDressing::Build()
 {
     if (bReady && bSeabedReady) return;
-    bool bNeedWater = !bReady;
-    bool bNeedSeabed = !bSeabedReady;
-    if (bNeedWater || bNeedSeabed)
-    {
-        BuildPlanes();
-    }
-    if (bNeedWater)
+    BuildPlanes();
+    if (!bReady)
     {
         WaterShader = LoadShaderFromMemory(kWaterVS, kWaterFS);
     }
 
-    if (bNeedSeabed)
+    if (!bSeabedReady)
     {
         SeabedShader = LoadShaderFromMemory(kSeabedVS, kSeabedFS);
     }
@@ -246,44 +235,18 @@ void FWorldDressing::Rebuild(const FTerrainRenderer* InTerrain)
     {
         Build();
     }
-    // Adaptive sea level: sample the tile and float the sea just below the
-    // lowland (p10) so legacy flat/renormalized meshes are not broadly
-    // submerged, while new beach-lifted tiles keep the default level.
-    // Only the feather rim + true depressions stay wet.
-    float TargetWater = kDefaultWaterLevelY;
-    if (InTerrain != nullptr && InTerrain->bIsLoaded)
+    // Adaptive sea level: float the sea just below the cached lowland p10
+    // so legacy flat/renormalized meshes are not broadly submerged, while
+    // new beach-lifted tiles keep the default level.
+    float TargetWater = kWaterLevelY;
+    float LowP10 = 0.0f;
+    if (InTerrain != nullptr && InTerrain->GetLowlandP10(LowP10))
     {
-        static constexpr int32_t kSamples = 24;
-        static constexpr float kExtent = 300.0f;
-        float Heights[24 * 24];
-        int32_t HitCount = 0;
-        for (int32_t iz = 0; iz < kSamples; ++iz)
-        {
-            for (int32_t ix = 0; ix < kSamples; ++ix)
-            {
-                const float X = -kExtent + 2.0f * kExtent * (ix / float(kSamples - 1));
-                const float Z = -kExtent + 2.0f * kExtent * (iz / float(kSamples - 1));
-                float H = 0.0f;
-                if (InTerrain->GetHeightAt(X, Z, H))
-                {
-                    Heights[HitCount++] = H;
-                }
-            }
-        }
-        if (HitCount >= 32)
-        {
-            std::sort(Heights, Heights + HitCount);
-            const float P10 = Heights[HitCount / 10];
-            // 0.4m freeboard below lowland; never above default, never so
-            // low the beach intersection (rim -1.0) disappears entirely.
-            TargetWater = P10 - 0.4f;
-            if (TargetWater > kDefaultWaterLevelY) TargetWater = kDefaultWaterLevelY;
-            if (TargetWater < -0.7f) TargetWater = -0.7f;
-        }
-    }
-    else
-    {
-        TargetWater = kDefaultWaterLevelY;
+        // 0.4m freeboard below lowland; never above default, never so low
+        // the beach intersection (rim -1.0) disappears entirely.
+        TargetWater = LowP10 - 0.4f;
+        if (TargetWater > kWaterLevelY) TargetWater = kWaterLevelY;
+        if (TargetWater < -0.7f) TargetWater = -0.7f;
     }
 
     if (fabsf(TargetWater - WaterLevelY) > 0.01f)

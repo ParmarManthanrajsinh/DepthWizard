@@ -1,6 +1,9 @@
 #include "terrain.h"
 #include "world.h"
+#include <algorithm>
+#include <cmath>
 #include <string>
+#include <vector>
 #include <cstdint>
 
 // Manual override: set to true to force plain-white terrain (ignores the
@@ -26,6 +29,7 @@ FTerrainRenderer::FTerrainRenderer()
     , bIsLoaded(false)
     , TerrainMinY(0.0f)
     , TerrainMaxY(0.0f)
+    , TerrainLowP10(0.0f)
     , RenderMode(ETerrainRenderMode::OpticalRGB)
     , RenderModeLoc(-1)
     , CamPosLoc(-1)
@@ -56,25 +60,32 @@ bool FTerrainRenderer::Load(std::string_view InFilePath)
         bIsLoaded = (TerrainModel.meshCount > 0);
         if (bIsLoaded)
         {
-            // Cache vertex Y bounds for adaptive sea-level fitting.
+            // Cache vertex Y bounds + interior lowland p10 for adaptive sea level.
             bool bFirst = true;
             float MinY = 0.0f, MaxY = 0.0f;
+            std::vector<float> InteriorY;
             for (int32_t MeshIdx = 0; MeshIdx < TerrainModel.meshCount; ++MeshIdx)
             {
                 const Mesh& M = TerrainModel.meshes[MeshIdx];
                 for (int32_t V = 0; V < M.vertexCount; ++V)
                 {
+                    const float X = M.vertices[V * 3];
                     const float Y = M.vertices[V * 3 + 1];
+                    const float Z = M.vertices[V * 3 + 2];
                     if (bFirst) { MinY = MaxY = Y; bFirst = false; }
                     else { if (Y < MinY) MinY = Y; if (Y > MaxY) MaxY = Y; }
+                    if (fabsf(X) <= 240.0f && fabsf(Z) <= 240.0f) InteriorY.push_back(Y);
                 }
             }
             TerrainMinY = MinY;
             TerrainMaxY = MaxY;
-            TraceLog(LOG_INFO, "[Terrain] Y range: min=%.2f max=%.2f", TerrainMinY, TerrainMaxY);
-        }
-        if (bIsLoaded)
-        {
+            if (!InteriorY.empty())
+            {
+                std::nth_element(InteriorY.begin(), InteriorY.begin() + InteriorY.size() / 10, InteriorY.end());
+                TerrainLowP10 = InteriorY[InteriorY.size() / 10];
+            }
+            TraceLog(LOG_INFO, "[Terrain] Y range: min=%.2f max=%.2f lowP10=%.2f", TerrainMinY, TerrainMaxY, TerrainLowP10);
+
             int texID = 0;
             if (TerrainModel.materialCount > 0)
             {

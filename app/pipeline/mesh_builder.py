@@ -94,7 +94,6 @@ def generate_terrain_mesh(
     physical_span: float = 600.0,
     feather_fraction: float = 0.09,
     feather_rim_y: float = FEATHER_RIM_Y,
-    sea_level_y: float = SEA_LEVEL_Y,
     beach_lift_m: float = BEACH_LIFT_M,
     preserve_datum: bool = False,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -105,7 +104,7 @@ def generate_terrain_mesh(
     Anti-flooding design (fixes "sea overlaps terrain"):
     - Interior heights are anchored so their minimum sits at
       ``beach_lift_m`` (default 2.5m), safely above the engine water
-      plane (``sea_level_y`` + ~0.13m Gerstner swell). Previously the
+      plane (1.5m + ~0.13m Gerstner swell). Previously the
       interior minimum was 0.0m, so the bottom ~4% of every low-relief
       tile rendered submerged.
     - When ``preserve_datum`` is True (metric georeferenced DEM/GCP
@@ -149,7 +148,7 @@ def generate_terrain_mesh(
 
     # Anchor interior minimum above the sea: y in [beach_lift, height_scale].
     # Guarantees dry land even for perfectly flat coastal plains.
-    lift = float(np.clip(beach_lift_m, sea_level_y + 0.3, height_scale))
+    lift = float(np.clip(beach_lift_m, SEA_LEVEL_Y + 0.3, height_scale))
     grid_y_interior = (lift + norm_h * (height_scale - lift)).astype(np.float32)
 
     # Beach falloff in metre space: slope the outer apron down to the rim
@@ -402,7 +401,6 @@ def build_terrain_glb(
     physical_span: float = 600.0,
     feather_fraction: float = 0.09,
     feather_rim_y: float = FEATHER_RIM_Y,
-    sea_level_y: float = SEA_LEVEL_Y,
     beach_lift_m: float = BEACH_LIFT_M,
     preserve_datum: bool = False,
 ) -> Path:
@@ -416,13 +414,12 @@ def build_terrain_glb(
         physical_span=physical_span,
         feather_fraction=feather_fraction,
         feather_rim_y=feather_rim_y,
-        sea_level_y=sea_level_y,
         beach_lift_m=beach_lift_m,
         preserve_datum=preserve_datum,
     )
 
     extras = {
-        "seaLevelY": float(sea_level_y),
+        "seaLevelY": float(SEA_LEVEL_Y),
         "beachLiftM": float(beach_lift_m),
         "featherRimY": float(feather_rim_y),
         "terrainMinY": float(verts[:, 1].min()),

@@ -172,17 +172,12 @@ def run_pipeline_for_job(job_id: str) -> None:
         import numpy as np
         logger.info(f"Final DSM Range: Min={np.nanmin(calib.calibrated_elevation):.2f}m, Max={np.nanmax(calib.calibrated_elevation):.2f}m")
         
-        # Shoreline fix: georeferenced/metric tiles preserve datum relief
-        # (robust p2/p98 span); relative tiles anchor interior above sea.
-        from app.config import BEACH_LIFT_M, SEA_LEVEL_Y
-        preserve = bool(is_geo and not calib.is_synthetic)
+        # Metric tiles preserve datum relief; relative tiles anchor above sea.
         build_terrain_glb(
             elevation_map=calib.calibrated_elevation,
             texture_image=rgb_img,
             output_path=mesh_path,
-            sea_level_y=SEA_LEVEL_Y,
-            beach_lift_m=BEACH_LIFT_M,
-            preserve_datum=preserve,
+            preserve_datum=bool(is_geo and not calib.is_synthetic),
         )
         job.mesh_path = str(mesh_path)
 

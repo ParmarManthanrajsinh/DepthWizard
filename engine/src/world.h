@@ -10,18 +10,11 @@
 class FWorldDressing
 {
 public:
-    static constexpr float kDefaultWaterLevelY = 1.5f;
-    static constexpr float kDefaultSeabedLevelY = -5.5f;
-    // Kept for backward compatibility (fallback ground height, tests).
-    static constexpr float kWaterLevelY = kDefaultWaterLevelY;
-    static constexpr float kSeabedLevelY = kDefaultSeabedLevelY;
+    static constexpr float kWaterLevelY = 1.5f;
+    static constexpr float kSeabedLevelY = -5.5f;
     static constexpr float kWorldRadius = 4000.0f;
     static constexpr float kFogStart = 350.0f;
     static constexpr float kFogEnd = 1600.0f;
-    /** Half extent of the terrain tile the square-coast shader aligns to. */
-    static constexpr float kIslandHalfExtent = 300.0f;
-    /** Max Gerstner swell amplitude baked into the water vertex shader. */
-    static constexpr float kWaveAmplitude = 0.13f;
 
     /** Tonemapped midday horizon haze; doubles as clear color and fog color. */
     static constexpr Color kHazeColor = { 186, 216, 238, 255 };
@@ -37,10 +30,6 @@ public:
     /** Adapts the sea to a newly loaded tile, then keeps animating. */
     void Rebuild(const FTerrainRenderer* InTerrain);
 
-    /** Current adaptive levels (default until Rebuild adapts them). */
-    float GetWaterLevel() const { return WaterLevelY; }
-    float GetSeabedLevel() const { return SeabedLevelY; }
-
     /** Advances water wave animation. */
     void Update(float InDeltaTime);
 
@@ -55,7 +44,6 @@ private:
     float WaterLevelY;
     float SeabedLevelY;
     void BuildPlanes();
-    void ApplyWaterLevel();
     Model WaterModel;
     Shader WaterShader;
     Model SeabedModel;

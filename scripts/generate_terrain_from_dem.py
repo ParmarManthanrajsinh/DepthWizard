@@ -103,7 +103,6 @@ def process_dem_file(dem_path_str: str, job_id: str = "dem_90m_shasta") -> dict:
     OUTPUTS_DIR.mkdir(parents=True, exist_ok=True)
     mesh_filename = f"{job_id}_terrain.glb"
     mesh_path = OUTPUTS_DIR / mesh_filename
-    from app.config import BEACH_LIFT_M, SEA_LEVEL_Y
     build_terrain_glb(
         elevation_map=dem_resampled,
         texture_image=texture_img,
@@ -112,9 +111,6 @@ def process_dem_file(dem_path_str: str, job_id: str = "dem_90m_shasta") -> dict:
         height_scale=95.0,
         physical_span=650.0,
         feather_fraction=0.08,
-        feather_rim_y=-1.0,
-        sea_level_y=SEA_LEVEL_Y,
-        beach_lift_m=BEACH_LIFT_M,
         preserve_datum=True,
     )
     print(f"Exported 3D mesh: {mesh_path} ({mesh_path.stat().st_size / 1024:.1f} KB)")

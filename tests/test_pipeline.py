@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 import struct
@@ -144,7 +145,7 @@ class TestElevationPipeline(unittest.TestCase):
             )
             data = out.read_bytes()
             jlen = struct.unpack("<I", data[12:16])[0]
-            gltf = __import__("json").loads(data[20:20 + jlen].rstrip(b"\x00").decode())
+            gltf = json.loads(data[20:20 + jlen].rstrip(b"\x00").decode())
             extras = gltf.get("extras", {})
             self.assertAlmostEqual(extras["seaLevelY"], 1.5)
             self.assertGreaterEqual(extras["terrainMinY"], -5.5)

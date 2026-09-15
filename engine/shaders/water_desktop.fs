@@ -67,9 +67,9 @@ void main() {
     float absEdge = abs(edgeDist);
     float outsideM = smoothstep(0.0, 40.0, edgeDist);
     float borderBand = 1.0 - smoothstep(0.0, 90.0, absEdge);
-    float seaMask = clamp(max(outsideM, borderBand * 0.9), 0.0, 1.0);
+    float seaMask = max(outsideM, borderBand * 0.9);
     if (seaMask <= 0.001) discard;
-    float radialT = 1.0 - smoothstep(0.0, 380.0, max(edgeDist, 0.0));
+    float radialT = 1.0 - smoothstep(0.0, 380.0, edgeDist);
     float analytic = 1.0 - smoothstep(0.0, 45.0, absEdge);
     float shallowT = clamp(radialT * 0.85 + analytic * 0.5, 0.0, 1.0);
     vec3 body = mix(uDeepColor, uShallowColor, shallowT);
