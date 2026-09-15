@@ -322,7 +322,7 @@ DepthWizard includes an end-to-end fine-tuning pipeline (`ml/train.py`) tailored
 python -m ml.train --smoke-test --max-steps 5 --limit-batches 2
 ```
 
-> **Fine-tuning status:** the end-to-end training pipeline is complete and smoke-tested (see `results/training_log.json`). The web app's default production path is the fine-tuned `checkpoints/exp05_r1/best.pt` (EX05-R1) when present, with automatic fallback to the frozen pretrained Depth Anything V2 backbone + affine calibration when it is absent. The benchmark table below reports the frozen-pretrained deployment baseline; fine-tuned EX05-R1 deltas are tracked in `EXPERIMENT_05_R1_REPORT.md`. Full GPU fine-tuning remains planned work.
+> **Fine-tuning status:** the end-to-end training pipeline is complete and smoke-tested (see `results/training_log.json`). The web app's default production path is the fine-tuned `checkpoints/exp05_r1/best.pt` (EX05-R1) when present, with automatic fallback to the frozen pretrained Depth Anything V2 backbone + affine calibration when it is absent. The benchmark table below reports the frozen-pretrained deployment baseline; fine-tuned EX05-R1 deltas are tracked in `docs/experiments/EXPERIMENT_05_R1_REPORT.md`. Full GPU fine-tuning remains planned work.
 
 ### 2. Run Local GPU Fine-Tuning (RTX 4060 8GB VRAM)
 ```powershell

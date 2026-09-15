@@ -87,7 +87,7 @@ def run_pipeline_for_job(job_id: str) -> None:
         db.commit()
 
         # Ex04B: Semantic / Object Exclusion for Terrain Reconstruction
-        # DISABLED in production — ablation study (EXPERIMENT_04B_REPORT.md) showed
+        # DISABLED in production — ablation study (docs/experiments/EXPERIMENT_04B_REPORT.md) showed
         # EX04B+EX04A produces worse gradients (2.16 vs 1.40) and worse MAE (3.36 vs
         # 3.22) than EX04A alone across 39 scenes. Kept for research; enable via
         # EX04B_CONFIG["enabled"] = True.
