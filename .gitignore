@@ -15,31 +15,10 @@ data/outputs/*
 !data/outputs/.gitkeep
 data/depthwizard.db
 data/depthwizard.db-journal
-data/cache/
-data/train/
-data/validation/
-data/test/
-!data/manifest.csv
-!data/tiles_manifest.csv
-
-# ML intermediate artifacts (large/derived)
-results/predictions/
-results/visualizations/
-results/alignment_check/
-
-# But keep small benchmark artifacts + visual proof in repo
-!results/*.json
-!results/*.csv
-!results/*.png
-# 120MB fine-tuned checkpoint stays out of git (distribute via Git LFS or release asset)
-results/best_checkpoint.pt
 
 # Engine / C++ Build artifacts
 engine/build/
 engine/bin/
-# Generated shader headers (regenerated from engine/shaders/*.glsl by
-# engine/tools/embed_shaders.py on every build)
-engine/src/shaders_gen/
 *.o
 *.obj
 *.exe
@@ -48,3 +27,20 @@ engine/src/shaders_gen/
 .vscode/
 .idea/
 *.swp
+
+# Large local experiment files
+checkpoints/
+outputs/
+results/
+
+# Local datasets - do not upload to GitHub
+data/GAMUS/
+data/train/
+data/validation/
+data/test/
+
+# Test cache
+.pytest_cache/
+
+# Local cached datasets / generated cache
+data/cache/
