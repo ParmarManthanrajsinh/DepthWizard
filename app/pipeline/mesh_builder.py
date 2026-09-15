@@ -7,7 +7,13 @@ from typing import Optional, Tuple
 import numpy as np
 from PIL import Image
 
-from app.config import DEFAULT_HEIGHT_SCALE, MESH_GRID_RESOLUTION
+from app.config import (
+    BEACH_LIFT_M,
+    DEFAULT_HEIGHT_SCALE,
+    FEATHER_RIM_Y,
+    MESH_GRID_RESOLUTION,
+    SEA_LEVEL_Y,
+)
 
 logger = logging.getLogger("depthwizard.pipeline.mesh")
 
@@ -87,17 +93,29 @@ def generate_terrain_mesh(
     adaptive_decimate: bool = False,
     physical_span: float = 600.0,
     feather_fraction: float = 0.09,
-    feather_rim_y: float = -1.0,
+    feather_rim_y: float = FEATHER_RIM_Y,
+    sea_level_y: float = SEA_LEVEL_Y,
+    beach_lift_m: float = BEACH_LIFT_M,
+    preserve_datum: bool = False,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Generate triangulated 3D mesh from 2D elevation grid.
     Returns (vertices, normals, uvs, indices).
 
-    The outer apron of the grid (``feather_fraction`` of each side) is
-    smoothly sloped down to ``feather_rim_y`` so the tile meets the sea
-    with a beach falloff instead of a cliff wall. Interior heights are
-    untouched. ``feather_rim_y`` should stay below the engine water level
-    (1.5) and above the seabed plane (-5.5).
+    Anti-flooding design (fixes "sea overlaps terrain"):
+    - Interior heights are anchored so their minimum sits at
+      ``beach_lift_m`` (default 2.5m), safely above the engine water
+      plane (``sea_level_y`` + ~0.13m Gerstner swell). Previously the
+      interior minimum was 0.0m, so the bottom ~4% of every low-relief
+      tile rendered submerged.
+    - When ``preserve_datum`` is True (metric georeferenced DEM/GCP
+      heights), relief shape is preserved via a robust p2/p98 span
+      instead of min/max, so SRTM outliers cannot flatten the coast.
+    - Only the outer feather apron dips to ``feather_rim_y`` (below sea
+      level, above the seabed) so the tile meets the ocean with a beach
+      falloff instead of a cliff wall. Feathering is applied in metre
+      (Y) space, not normalized space, so it stays correct for both
+      relative and metric inputs.
     """
     # Downsample/resample elevation map to target resolution
     img = Image.fromarray(elevation_map.astype(np.float32))
@@ -106,13 +124,36 @@ def generate_terrain_mesh(
 
     # Normalize height
     h_min, h_max = float(h_grid.min()), float(h_grid.max())
-    if h_max > h_min:
+    if preserve_datum and h_max > h_min:
+        # Robust span: p2 (shoreline anchor) to p98, immune to single
+        # outlier pits/peaks that would otherwise collapse relief.
+        finite = h_grid[np.isfinite(h_grid)]
+        if finite.size >= 8:
+            p_lo = float(np.percentile(finite, 2))
+            p_hi = float(np.percentile(finite, 98))
+        else:
+            p_lo, p_hi = h_min, h_max
+        span = p_hi - p_lo
+        if span > 1e-9:
+            norm_h = (h_grid - p_lo) / span
+        else:
+            norm_h = np.zeros_like(h_grid)
+        # Clamp outlier tails (e.g. deep pits) so they cannot drag the
+        # whole coast below sea level; real depressions still survive
+        # as slightly-below-beach dips inside the feather blend.
+        norm_h = np.clip(norm_h, -0.05, 1.0).astype(np.float32)
+    elif h_max > h_min:
         norm_h = (h_grid - h_min) / (h_max - h_min)
     else:
         norm_h = np.zeros_like(h_grid)
 
-    # Beach falloff: slope the outer apron below sea level so the tile
-    # blends into the ocean instead of ending in a cliff wall.
+    # Anchor interior minimum above the sea: y in [beach_lift, height_scale].
+    # Guarantees dry land even for perfectly flat coastal plains.
+    lift = float(np.clip(beach_lift_m, sea_level_y + 0.3, height_scale))
+    grid_y_interior = (lift + norm_h * (height_scale - lift)).astype(np.float32)
+
+    # Beach falloff in metre space: slope the outer apron down to the rim
+    # so the tile blends into the ocean instead of ending in a cliff wall.
     feather_px = max(int(round(target_res * feather_fraction)), 0)
     if feather_px > 0 and height_scale != 0:
         rows, cols = np.mgrid[0:target_res, 0:target_res]
@@ -123,8 +164,9 @@ def generate_terrain_mesh(
         mask = np.clip(edge_dist, 0.0, 1.0)
         # smoothstep for C1-continuous slope into the rim
         mask = mask * mask * (3.0 - 2.0 * mask)
-        rim_norm = np.float32(feather_rim_y / height_scale)
-        norm_h = rim_norm * (1.0 - mask) + norm_h * mask
+        grid_y = np.float32(feather_rim_y) * (1.0 - mask) + grid_y_interior * mask
+    else:
+        grid_y = grid_y_interior
 
     # Mesh physical extents in virtual units (enlarged for realistic wide map view)
     width = physical_span
@@ -133,9 +175,6 @@ def generate_terrain_mesh(
     xs = np.linspace(-width / 2.0, width / 2.0, target_res, dtype=np.float32)
     zs = np.linspace(-depth / 2.0, depth / 2.0, target_res, dtype=np.float32)
     grid_x, grid_z = np.meshgrid(xs, zs)
-
-    # Y is up in standard 3D coordinates (glTF & raylib)
-    grid_y = norm_h * height_scale
 
     # Flatten coordinates into (N, 3) vertices
     vertices = np.stack([grid_x.ravel(), grid_y.ravel(), grid_z.ravel()], axis=1).astype(np.float32)
@@ -176,7 +215,8 @@ def export_pure_glb(
     uvs: np.ndarray,
     indices: np.ndarray,
     texture_image: Image.Image,
-    output_path: Path
+    output_path: Path,
+    extras: Optional[dict] = None,
 ) -> Path:
     """
     Self-contained, zero-external-dependency binary glTF 2.0 (.glb) exporter.
@@ -226,9 +266,11 @@ def export_pure_glb(
     min_pos = vertices.min(axis=0).tolist()
     max_pos = vertices.max(axis=0).tolist()
 
-    # Construct glTF JSON structure
+    # Construct glTF JSON structure (extras carry sea/shoreline metadata
+    # so the engine can adapt the water plane per tile).
     gltf_dict = {
         "asset": {"version": "2.0", "generator": "DepthWizard-MeshBuilder"},
+        "extras": extras or {},
         "scene": 0,
         "scenes": [{"nodes": [0]}],
         "nodes": [{"mesh": 0, "name": "TerrainMesh"}],
@@ -359,7 +401,10 @@ def build_terrain_glb(
     height_scale: float = DEFAULT_HEIGHT_SCALE,
     physical_span: float = 600.0,
     feather_fraction: float = 0.09,
-    feather_rim_y: float = -1.0,
+    feather_rim_y: float = FEATHER_RIM_Y,
+    sea_level_y: float = SEA_LEVEL_Y,
+    beach_lift_m: float = BEACH_LIFT_M,
+    preserve_datum: bool = False,
 ) -> Path:
     """
     Complete pipeline to generate triangulated 3D mesh and export to glTF .glb.
@@ -371,7 +416,21 @@ def build_terrain_glb(
         physical_span=physical_span,
         feather_fraction=feather_fraction,
         feather_rim_y=feather_rim_y,
+        sea_level_y=sea_level_y,
+        beach_lift_m=beach_lift_m,
+        preserve_datum=preserve_datum,
     )
+
+    extras = {
+        "seaLevelY": float(sea_level_y),
+        "beachLiftM": float(beach_lift_m),
+        "featherRimY": float(feather_rim_y),
+        "terrainMinY": float(verts[:, 1].min()),
+        "terrainMaxY": float(verts[:, 1].max()),
+        "physicalSpan": float(physical_span),
+        "heightScale": float(height_scale),
+        "preserveDatum": bool(preserve_datum),
+    }
 
     return export_pure_glb(
         vertices=verts,
@@ -380,4 +439,5 @@ def build_terrain_glb(
         indices=indices,
         texture_image=texture_image,
         output_path=output_path,
+        extras=extras,
     )

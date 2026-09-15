@@ -24,6 +24,8 @@ FTerrainRenderer::FTerrainRenderer()
     : TerrainModel({ 0 })
     , TerrainShader({ 0 })
     , bIsLoaded(false)
+    , TerrainMinY(0.0f)
+    , TerrainMaxY(0.0f)
     , RenderMode(ETerrainRenderMode::OpticalRGB)
     , RenderModeLoc(-1)
     , CamPosLoc(-1)
@@ -52,6 +54,25 @@ bool FTerrainRenderer::Load(std::string_view InFilePath)
     {
         TerrainModel = LoadModel(PathString.c_str());
         bIsLoaded = (TerrainModel.meshCount > 0);
+        if (bIsLoaded)
+        {
+            // Cache vertex Y bounds for adaptive sea-level fitting.
+            bool bFirst = true;
+            float MinY = 0.0f, MaxY = 0.0f;
+            for (int32_t MeshIdx = 0; MeshIdx < TerrainModel.meshCount; ++MeshIdx)
+            {
+                const Mesh& M = TerrainModel.meshes[MeshIdx];
+                for (int32_t V = 0; V < M.vertexCount; ++V)
+                {
+                    const float Y = M.vertices[V * 3 + 1];
+                    if (bFirst) { MinY = MaxY = Y; bFirst = false; }
+                    else { if (Y < MinY) MinY = Y; if (Y > MaxY) MaxY = Y; }
+                }
+            }
+            TerrainMinY = MinY;
+            TerrainMaxY = MaxY;
+            TraceLog(LOG_INFO, "[Terrain] Y range: min=%.2f max=%.2f", TerrainMinY, TerrainMaxY);
+        }
         if (bIsLoaded)
         {
             int texID = 0;

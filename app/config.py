@@ -55,6 +55,15 @@ DEVICE = get_device()
 MESH_GRID_RESOLUTION = int(os.getenv("MESH_GRID_RESOLUTION", "160"))
 DEFAULT_HEIGHT_SCALE = float(os.getenv("DEFAULT_HEIGHT_SCALE", "35.0"))
 
+# Sea / shoreline settings (must match engine/src/world.h defaults).
+# SEA_LEVEL_Y: engine water plane height. BEACH_LIFT_M: interior mesh minimum,
+# kept above max wave crest (SEA_LEVEL_Y + 0.13m swell) so low-relief tiles
+# never render submerged ("sea overlaps terrain" fix).
+SEA_LEVEL_Y = float(os.getenv("SEA_LEVEL_Y", "1.5"))
+SEABED_LEVEL_Y = float(os.getenv("SEABED_LEVEL_Y", "-5.5"))
+BEACH_LIFT_M = float(os.getenv("BEACH_LIFT_M", "2.5"))
+FEATHER_RIM_Y = float(os.getenv("FEATHER_RIM_Y", "-1.0"))
+
 # Server Settings
 HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "8000"))

@@ -111,6 +111,48 @@ class TestElevationPipeline(unittest.TestCase):
             if tmp_path.exists():
                 tmp_path.unlink()
 
+    def test_shoreline_anti_flooding(self):
+        """V2 shoreline fix: interior mesh stays above sea crest, rim below
+        sea but above seabed, for both relative and metric inputs."""
+        from app.config import BEACH_LIFT_M, SEA_LEVEL_Y
+        # Flat relative tile (worst case: old code mapped it to 0m -> submerged)
+        flat = np.zeros((32, 32), dtype=np.float32)
+        verts, _, _, _ = generate_terrain_mesh(flat, target_res=16)
+        y = verts[:, 1].reshape(16, 16)
+        interior = y[4:12, 4:12]
+        self.assertGreaterEqual(float(interior.min()), SEA_LEVEL_Y + 0.3)
+        self.assertLess(float(y.min()), SEA_LEVEL_Y)  # rim dips (beach)
+        self.assertGreater(float(y.min()), -5.5)  # rim above seabed
+        # Metric DEM with outlier pit: robust span must not collapse coast
+        rng = np.random.default_rng(7)
+        dem = (1200.0 + 300.0 * rng.random((64, 64))).astype(np.float32)
+        dem[0, 0] = -500.0  # outlier pit
+        v2, _, _, _ = generate_terrain_mesh(dem, target_res=32, preserve_datum=True)
+        y2 = v2[:, 1].reshape(32, 32)
+        self.assertGreaterEqual(float(y2[8:24, 8:24].min()), SEA_LEVEL_Y + 0.3)
+
+    def test_glb_sea_extras(self):
+        elevation = np.zeros((16, 16), dtype=np.float32)
+        with tempfile.NamedTemporaryFile(suffix=".glb", delete=False) as tmp:
+            tmp_path = Path(tmp.name)
+        try:
+            out = build_terrain_glb(
+                elevation_map=elevation,
+                texture_image=self.test_img,
+                output_path=tmp_path,
+                grid_resolution=8,
+            )
+            data = out.read_bytes()
+            jlen = struct.unpack("<I", data[12:16])[0]
+            gltf = __import__("json").loads(data[20:20 + jlen].rstrip(b"\x00").decode())
+            extras = gltf.get("extras", {})
+            self.assertAlmostEqual(extras["seaLevelY"], 1.5)
+            self.assertGreaterEqual(extras["terrainMinY"], -5.5)
+            self.assertGreater(extras["terrainMaxY"], extras["seaLevelY"])
+        finally:
+            if tmp_path.exists():
+                tmp_path.unlink()
+
     def test_dsm_geotiff_and_preview_export(self):
         elevation = np.linspace(500, 1500, 64 * 64).reshape((64, 64)).astype(np.float32)
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -25,6 +25,8 @@
 
 FWorldDressing::FWorldDressing()
     : Time(0.0f)
+    , WaterLevelY(kDefaultWaterLevelY)
+    , SeabedLevelY(kDefaultSeabedLevelY)
     , WaterModel({ 0 })
     , WaterShader({ 0 })
     , SeabedModel({ 0 })
@@ -71,32 +73,75 @@ static void SetFloat(Shader InShader, int32_t InLoc, float InValue)
     }
 }
 
+void FWorldDressing::BuildPlanes()
+{
+    // (Re)build the water + seabed planes at the current adaptive levels.
+    // Vertex Y is baked so vertexPosition == world position in-shader.
+    if (WaterModel.meshCount > 0)
+    {
+        UnloadModel(WaterModel);
+        WaterModel = { 0 };
+    }
+    if (SeabedModel.meshCount > 0)
+    {
+        UnloadModel(SeabedModel);
+        SeabedModel = { 0 };
+    }
+    // NOTE: raylib Mesh uses 16-bit indices (max 65535). 255 segments =
+    // 256^2 = 65536 verts, the largest watertight grid that fits.
+    Mesh PlaneMesh = GenMeshPlane(kWorldRadius * 2.0f, kWorldRadius * 2.0f, 255, 255);
+    for (int32_t Index = 0; Index < PlaneMesh.vertexCount; ++Index)
+    {
+        PlaneMesh.vertices[Index * 3 + 1] += WaterLevelY;
+    }
+    WaterModel = LoadModelFromMesh(PlaneMesh);
+
+    // Sandy seabed bottom layer, visible through the transparent water.
+    Mesh SeabedMesh = GenMeshPlane(kWorldRadius * 2.0f, kWorldRadius * 2.0f, 128, 128);
+    for (int32_t Index = 0; Index < SeabedMesh.vertexCount; ++Index)
+    {
+        SeabedMesh.vertices[Index * 3 + 1] += SeabedLevelY;
+    }
+    SeabedModel = LoadModelFromMesh(SeabedMesh);
+
+    ApplyWaterLevel();
+}
+
+void FWorldDressing::ApplyWaterLevel()
+{
+    // Re-attach already-compiled shaders to the rebuilt models.
+    if (WaterShader.id > 0)
+    {
+        for (int i = 0; i < WaterModel.materialCount; ++i)
+        {
+            WaterModel.materials[i].shader = WaterShader;
+        }
+    }
+    if (SeabedShader.id > 0)
+    {
+        for (int i = 0; i < SeabedModel.materialCount; ++i)
+        {
+            SeabedModel.materials[i].shader = SeabedShader;
+        }
+    }
+}
+
 void FWorldDressing::Build()
 {
     if (bReady && bSeabedReady) return;
-    if (!bReady)
+    bool bNeedWater = !bReady;
+    bool bNeedSeabed = !bSeabedReady;
+    if (bNeedWater || bNeedSeabed)
     {
-        // NOTE: raylib Mesh uses 16-bit indices (max 65535). 255 segments =
-    // 256^2 = 65536 verts, the largest watertight grid that fits.
-    Mesh PlaneMesh = GenMeshPlane(kWorldRadius * 2.0f, kWorldRadius * 2.0f, 255, 255);
-        // Bake the water level so vertexPosition == world position in-shader.
-        for (int32_t Index = 0; Index < PlaneMesh.vertexCount; ++Index)
-        {
-            PlaneMesh.vertices[Index * 3 + 1] += kWaterLevelY;
-        }
-        WaterModel = LoadModelFromMesh(PlaneMesh);
+        BuildPlanes();
+    }
+    if (bNeedWater)
+    {
         WaterShader = LoadShaderFromMemory(kWaterVS, kWaterFS);
     }
 
-    if (!bSeabedReady)
+    if (bNeedSeabed)
     {
-        // Sandy seabed bottom layer, visible through the transparent water.
-        Mesh SeabedMesh = GenMeshPlane(kWorldRadius * 2.0f, kWorldRadius * 2.0f, 128, 128);
-        for (int32_t Index = 0; Index < SeabedMesh.vertexCount; ++Index)
-        {
-            SeabedMesh.vertices[Index * 3 + 1] += kSeabedLevelY;
-        }
-        SeabedModel = LoadModelFromMesh(SeabedMesh);
         SeabedShader = LoadShaderFromMemory(kSeabedVS, kSeabedFS);
     }
 
@@ -197,10 +242,57 @@ void FWorldDressing::Unload()
 
 void FWorldDressing::Rebuild(const FTerrainRenderer* InTerrain)
 {
-    (void)InTerrain;
     if (!bReady || !bSeabedReady)
     {
         Build();
+    }
+    // Adaptive sea level: sample the tile and float the sea just below the
+    // lowland (p10) so legacy flat/renormalized meshes are not broadly
+    // submerged, while new beach-lifted tiles keep the default level.
+    // Only the feather rim + true depressions stay wet.
+    float TargetWater = kDefaultWaterLevelY;
+    if (InTerrain != nullptr && InTerrain->bIsLoaded)
+    {
+        static constexpr int32_t kSamples = 24;
+        static constexpr float kExtent = 300.0f;
+        float Heights[24 * 24];
+        int32_t HitCount = 0;
+        for (int32_t iz = 0; iz < kSamples; ++iz)
+        {
+            for (int32_t ix = 0; ix < kSamples; ++ix)
+            {
+                const float X = -kExtent + 2.0f * kExtent * (ix / float(kSamples - 1));
+                const float Z = -kExtent + 2.0f * kExtent * (iz / float(kSamples - 1));
+                float H = 0.0f;
+                if (InTerrain->GetHeightAt(X, Z, H))
+                {
+                    Heights[HitCount++] = H;
+                }
+            }
+        }
+        if (HitCount >= 32)
+        {
+            std::sort(Heights, Heights + HitCount);
+            const float P10 = Heights[HitCount / 10];
+            // 0.4m freeboard below lowland; never above default, never so
+            // low the beach intersection (rim -1.0) disappears entirely.
+            TargetWater = P10 - 0.4f;
+            if (TargetWater > kDefaultWaterLevelY) TargetWater = kDefaultWaterLevelY;
+            if (TargetWater < -0.7f) TargetWater = -0.7f;
+        }
+    }
+    else
+    {
+        TargetWater = kDefaultWaterLevelY;
+    }
+
+    if (fabsf(TargetWater - WaterLevelY) > 0.01f)
+    {
+        WaterLevelY = TargetWater;
+        SeabedLevelY = WaterLevelY - 7.0f;
+        BuildPlanes();
+        TraceLog(LOG_INFO, "[Water] adaptive level: water=%.2f seabed=%.2f",
+                 WaterLevelY, SeabedLevelY);
     }
     Time = 0.0f;
 }

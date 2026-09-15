@@ -21,6 +21,8 @@ public:
     Model TerrainModel;
     Shader TerrainShader;
     bool bIsLoaded;
+    float TerrainMinY;
+    float TerrainMaxY;
     ETerrainRenderMode RenderMode;
     int32_t RenderModeLoc;
     int32_t CamPosLoc;
@@ -95,4 +97,11 @@ public:
      * Samples terrain height, returning a fallback when off-mesh (open water).
      */
     float GetGroundHeightOr(float InX, float InZ, float InFallbackY) const;
+
+    /**
+     * Min/max Y sampled from loaded mesh vertices. Valid only when loaded.
+     * Used by the ocean to adapt the water level per tile so legacy flat
+     * meshes do not render broadly submerged.
+     */
+    void GetMinMaxY(float& OutMinY, float& OutMaxY) const { OutMinY = TerrainMinY; OutMaxY = TerrainMaxY; }
 };

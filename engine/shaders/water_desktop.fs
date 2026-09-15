@@ -56,10 +56,21 @@ void main() {
     vec3 V = normalize(uCamPos - vWorldPos);
     vec3 L = normalize(uSunDir);
 
-    // Shore proximity modulation: water gets turquoise/shallow near the central island
-    float shoreDist = length(p);
-    float radialT = 1.0 - smoothstep(120.0, 650.0, shoreDist);
-    float analytic = (1.0 - smoothstep(170.0, 210.0, shoreDist)) * smoothstep(130.0, 160.0, shoreDist);
+    // Square-coast shoreline: the terrain tile is a 600x600 square
+    // (half-extent 300), not a disc. Signed box distance is negative
+    // inside the tile, zero at the tile border, positive in open sea.
+    // Shallow turquoise lives in a band around the border; the sea fades
+    // out deep inside the tile so it can never wash over inland terrain
+    // ("sea overlaps terrain" guard — sea belongs outside the island).
+    vec2 edgeQ = abs(p) - vec2(300.0);
+    float edgeDist = length(max(edgeQ, vec2(0.0))) + min(max(edgeQ.x, edgeQ.y), 0.0);
+    float absEdge = abs(edgeDist);
+    float outsideM = smoothstep(0.0, 40.0, edgeDist);
+    float borderBand = 1.0 - smoothstep(0.0, 90.0, absEdge);
+    float seaMask = clamp(max(outsideM, borderBand * 0.9), 0.0, 1.0);
+    if (seaMask <= 0.001) discard;
+    float radialT = 1.0 - smoothstep(0.0, 380.0, max(edgeDist, 0.0));
+    float analytic = 1.0 - smoothstep(0.0, 45.0, absEdge);
     float shallowT = clamp(radialT * 0.85 + analytic * 0.5, 0.0, 1.0);
     vec3 body = mix(uDeepColor, uShallowColor, shallowT);
 
@@ -78,8 +89,8 @@ void main() {
     col += min(pow(ndh, 400.0) * 0.6, 1.0) * detailFade * vec3(1.0, 0.97, 0.92);
     col += pow(ndh, 24.0) * 0.05 * vec3(1.0, 0.95, 0.85);
 
-    // Shore & crest sea foam
-    float lap = 0.5 + 0.5 * sin(uTime * 0.45 - shoreDist * 0.18);
+    // Shore & crest sea foam (lapping phase measured from tile border)
+    float lap = 0.5 + 0.5 * sin(uTime * 0.45 - absEdge * 0.18);
     float shoreFoam = smoothstep(0.30, 0.55, analytic + vCrest * 0.25) * smoothstep(0.35, 0.65, fbm(p * 0.05 + vec2(uTime * 0.15, uTime * 0.1)) * 0.7 + lap * 0.3);
     float crestFoam = smoothstep(0.15, 0.45, vCrest) * smoothstep(0.5, 0.8, fbm(p * 0.22 + vec2(uTime * 0.4))) * detailFade;
     // Whitecap fields: large wind-advected foam patches, visible at distance.
@@ -99,6 +110,9 @@ void main() {
 
     // Real transparency over the seabed: clear looking down near the camera,
     // reflective/opaque at grazing angles and toward the horizon. Foam is solid.
-    float alpha = clamp(0.45 + foamM * 0.55 + fres * 0.9 + smoothstep(150.0, 650.0, distC) * 0.5, 0.0, 1.0);
+    // Base lowered 0.45 -> 0.32 so the shoreline wash stays translucent instead
+    // of milky-cyan, and scaled by seaMask so interior flooding is impossible.
+    float alphaBase = clamp(0.32 + foamM * 0.55 + fres * 0.9 + smoothstep(150.0, 650.0, distC) * 0.5, 0.0, 1.0);
+    float alpha = alphaBase * seaMask;
     finalColor = vec4(col, alpha);
 }

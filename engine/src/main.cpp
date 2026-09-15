@@ -515,9 +515,10 @@ int main(int argc, char* argv[])
     SetTargetFPS(60);
 
     // World scale is kilometers: default raylib clip planes (~0.01/1000)
-    // would slice the far sea and sky dome. Near 0.1 also tightens depth
-    // precision for the water/seabed layering.
-    rlSetClipPlanes(0.1, 9000.0);
+    // would slice the far sea and sky dome. Near 1.0 / far 6000 keeps the
+    // 8km sea + sky inside while cutting depth ratio 90k -> 6k, so the
+    // waterline feather slope no longer shimmers (16-bit WebGL depth).
+    rlSetClipPlanes(1.0, 6000.0);
 
     GCamera.Reset();
     GPlane.BuildModels();
