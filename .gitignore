@@ -47,6 +47,12 @@ data/train/
 data/validation/
 data/test/
 
+# Large local-only sample rasters (untracked; see README quickstart)
+data/samples/RGB.byte.tif
+data/samples/dem_90m.tif
+data/samples/sample_opengeos_cog.tif
+data/samples/sentinel2_large_crop.tif
+
 # Test cache
 .pytest_cache/
 

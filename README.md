@@ -189,7 +189,7 @@ SIH/
 ├── data/
 │   ├── manifest.csv              # Tile crop split manifest (train/val/test)
 │   ├── tiles_manifest.csv        # Multi-biome dataset manifest (Potsdam, Vaihingen)
-│   ├── samples/                  # Pre-packaged sample optical images & GeoTIFFs
+│   ├── samples/                  # Pre-packaged sample optical images & GeoTIFFs (large local-only TIFs gitignored)
 │   ├── uploads/                  # Raw user uploads
 │   └── outputs/                  # Calibrated DSMs (.tif) and 3D meshes (.glb)
 ├── results/                      # Benchmark models & evaluation outputs (evaluation artifacts tracked; *.pt weights gitignored)
@@ -198,10 +198,15 @@ SIH/
 │   ├── evaluation.csv            # Per-crop RMSE, MAE, correlation breakdown (tracked)
 │   ├── potsdam_validation_report.json # Potsdam validation evidence cited by REPORT.md (tracked)
 │   ├── best_checkpoint.pt        # Legacy benchmark weights (gitignored — not in repo; web app uses checkpoints/exp05_r1/best.pt)
+│   ├── predictions/              # Per-crop .npy outputs (gitignored — regenerate via `python -m ml.evaluate`)
+│   ├── visualizations/           # Sample comparison renders (gitignored — regenerate via `python -m ml.evaluate`)
 │   └── training_log.json         # Fine-tuning training telemetry log
+├── docs/
+│   └── experiments/              # EX04/EX05 audits and experiment reports
 ├── tests/
 │   ├── test_pipeline.py          # Pipeline unit tests (depth, mesh, GLB)
 │   ├── test_api.py               # Integration tests for FastAPI endpoints
+│   ├── test_honesty_plumbing.py  # Fallback labeling + badge regression tests
 │   ├── test_losses.py            # Numerical tests for scale-shift invariant loss
 │   └── test_ml_pipeline.py       # Dataset, preprocessing & alignment tests
 ├── scripts/
@@ -209,8 +214,10 @@ SIH/
 │   ├── prepare_potsdam_dataset.py# Tiles & splits ISPRS Potsdam dataset
 │   ├── prepare_vaihingen_dataset.py# Ingests & aligns ISPRS Vaihingen multi-biome data
 │   ├── generate_sample.py        # Synthetic test data generator
+│   ├── generate_terrain_from_dem.py # DEM-to-mesh offline utility
 │   ├── test_dataset_samples.py   # Dataset sample raster verification
-│   └── test_end_to_end.py        # Full pipeline integration verification
+│   ├── test_end_to_end.py        # Full pipeline integration verification
+│   └── archive/                  # One-off asset scripts (jet rebuild, big flight map)
 ├── Dockerfile                    # Single-container deploy
 ├── requirements.txt              # Core python packages
 ├── run.py                        # Single-command launcher
