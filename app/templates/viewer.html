@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Space+Grotesk:wght@600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="stylesheet" href="/static/css/style.css?v=3">
 </head>
 <body class="viewer-layout" data-job-id="{{ job_id }}">
   <div id="canvas-container">
@@ -85,7 +85,139 @@
     <div id="hud-wireframe-btn" style="cursor: pointer;"><kbd>X</kbd> — TOGGLE WIREFRAME MESH</div>
   </div>
 
+  <!-- Terrain Analysis Panel -->
+  <div class="viewer-analysis-card" style="position: absolute; z-index: 10;">
+    <h3>TERRAIN ANALYSIS</h3>
+    
+    <div class="analysis-section" id="analysis-point">
+      <button class="analysis-btn" onclick="queryPointElevation()">
+        <span>[POINT ELEVATION]</span>
+        <span>></span>
+      </button>
+      <div id="point-result" style="display:none;" class="analysis-result"></div>
+    </div>
+    
+    <div class="analysis-section" id="analysis-slope">
+      <button class="analysis-btn" hx-get="/api/jobs/{{ job_id }}/analysis/slope_html" hx-target="#slope-result" hx-indicator="#slope-loading">
+        <span>[SLOPE]</span>
+        <span>></span>
+      </button>
+      <div id="slope-loading" class="htmx-indicator" style="font-size:0.7rem; color:var(--color-accent-green);">Generating...</div>
+      <div id="slope-result"></div>
+    </div>
+    
+    <div class="analysis-section" id="analysis-aspect">
+      <button class="analysis-btn" hx-get="/api/jobs/{{ job_id }}/analysis/aspect_html" hx-target="#aspect-result" hx-indicator="#aspect-loading">
+        <span>[ASPECT]</span>
+        <span>></span>
+      </button>
+      <div id="aspect-loading" class="htmx-indicator" style="font-size:0.7rem; color:var(--color-accent-green);">Generating...</div>
+      <div id="aspect-result"></div>
+    </div>
+    
+    <div class="analysis-section" id="analysis-profile">
+      <form hx-get="/api/jobs/{{ job_id }}/analysis/profile_html" hx-target="#profile-result" hx-indicator="#profile-loading" style="display:flex; flex-direction:column; gap:4px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span>START X,Y:</span>
+          <input type="text" name="start_x" id="prof-sx" class="analysis-input" placeholder="X" required style="width:40px;">
+          <input type="text" name="start_y" id="prof-sy" class="analysis-input" placeholder="Y" required style="width:40px;">
+        </div>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span>END X,Y:</span>
+          <input type="text" name="end_x" id="prof-ex" class="analysis-input" placeholder="X" required style="width:40px;">
+          <input type="text" name="end_y" id="prof-ey" class="analysis-input" placeholder="Y" required style="width:40px;">
+        </div>
+        <input type="hidden" name="system" value="spatial" id="prof-sys">
+        <button type="button" class="analysis-btn" onclick="useViewerCoordsForProfile()" style="justify-content:center; padding:2px; font-size:0.65rem; color:#00f0ff;">[USE HUD COORDS FOR END]</button>
+        <button type="submit" class="analysis-btn">
+          <span>[ELEVATION PROFILE]</span>
+          <span>></span>
+        </button>
+      </form>
+      <div id="profile-loading" class="htmx-indicator" style="font-size:0.7rem; color:var(--color-accent-green);">Generating...</div>
+      <div id="profile-result"></div>
+    </div>
+    
+    <div class="analysis-section" id="analysis-contours">
+      <form hx-get="/api/jobs/{{ job_id }}/analysis/contours_html" hx-target="#contours-result" hx-indicator="#contours-loading" style="display:flex; justify-content:space-between; align-items:center;">
+        <span>INTERVAL (m):</span>
+        <input type="number" name="interval" value="10" step="1" min="1" class="analysis-input" required>
+        <button type="submit" class="analysis-btn" style="padding:0.2rem;">GO</button>
+      </form>
+      <div id="contours-loading" class="htmx-indicator" style="font-size:0.7rem; color:var(--color-accent-green);">Generating...</div>
+      <div id="contours-result"></div>
+    </div>
+    
+    <div class="analysis-section" id="analysis-export" style="margin-top:var(--space-xs);">
+      <a href="/api/jobs/{{ job_id }}/analysis/export" class="analysis-btn" style="justify-content:center; background-color:var(--color-accent); color:var(--color-accent-ink); font-weight:700; text-decoration:none;" download>
+        [EXPORT TERRAIN DATA (ZIP)]
+      </a>
+    </div>
+  </div>
+
   <a href="/" class="viewer-exit-btn">← EXIT TO CONSOLE</a>
+
+  <!-- HTMX for API interactions -->
+  <script src="https://unpkg.com/htmx.org@1.9.10" integrity="sha384-D1Kt99CQMDuVetoL1lrYwg5t+9QdHe7NLX/SoJYkXDFfX37iInKRy5xLSi8nO7UC" crossorigin="anonymous"></script>
+
+  <script>
+    // Integration logic
+    const jobId = "{{ job_id }}";
+    
+    async function queryPointElevation() {
+      const hudPosStr = document.getElementById('hud-pos').innerText;
+      if (!hudPosStr || hudPosStr.includes('Loading')) return;
+      
+      const parts = hudPosStr.split(',');
+      if (parts.length < 2) return;
+      
+      const x = parseFloat(parts[0].trim());
+      const y = parseFloat(parts[1].trim());
+      
+      const resDiv = document.getElementById('point-result');
+      resDiv.style.display = 'block';
+      resDiv.innerText = 'Querying...';
+      resDiv.className = 'analysis-result';
+      
+      try {
+        const res = await fetch(`/api/jobs/${jobId}/analysis/point?x=${x}&y=${y}&system=spatial`);
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.detail || `HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        
+        if (data.is_nodata) {
+          resDiv.innerHTML = `ELEV: <span style="color:var(--color-accent);">NODATA</span><br>COORD: ${data.spatial_x}, ${data.spatial_y}`;
+        } else {
+          resDiv.innerHTML = `ELEV: <span style="color:#fff;">${data.elevation}</span><br>COORD: ${data.spatial_x}, ${data.spatial_y}`;
+        }
+      } catch (e) {
+        resDiv.innerHTML = `ERR: ${e.message}`;
+        resDiv.className = 'analysis-result analysis-error';
+      }
+    }
+
+    let profileClickCount = 0;
+    function useViewerCoordsForProfile() {
+      const hudPosStr = document.getElementById('hud-pos').innerText;
+      if (!hudPosStr || hudPosStr.includes('Loading')) return;
+      const parts = hudPosStr.split(',');
+      if (parts.length < 2) return;
+      const x = parseFloat(parts[0].trim());
+      const y = parseFloat(parts[1].trim());
+      
+      if (profileClickCount % 2 === 0) {
+        document.getElementById('prof-sx').value = x;
+        document.getElementById('prof-sy').value = y;
+        profileClickCount++;
+      } else {
+        document.getElementById('prof-ex').value = x;
+        document.getElementById('prof-ey').value = y;
+        profileClickCount++;
+      }
+    }
+  </script>
 
   <!-- DepthWizard Raylib C++ WebAssembly Flythrough Engine -->
   <script src="/static/viewer/viewer.js"></script>

@@ -1,0 +1,29 @@
+{
+  "val": {
+    "mae": 2.443671703338623,
+    "rmse": 3.991539239883423,
+    "corr": 0.5400862909648417
+  },
+  "test": {
+    "mae": 2.8563268184661865,
+    "rmse": 4.777505874633789,
+    "corr": 0.6394119100021665
+  },
+  "config": {
+    "random_seed": 42,
+    "input_resolution": [
+      518,
+      518
+    ],
+    "batch_size": 2,
+    "num_workers": 0,
+    "optimizer": "AdamW",
+    "learning_rate": 5e-05,
+    "scheduler": "None",
+    "loss": "CombinedDepthLoss(SSI + 0.5*Grad)",
+    "frozen_layers": "backbone",
+    "trainable_layers": "neck + head",
+    "epochs": 1,
+    "device": "cuda"
+  }
+}

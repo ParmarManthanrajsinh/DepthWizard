@@ -969,3 +969,96 @@ canvas.emscripten {
   border-color: var(--color-accent);
   color: var(--color-accent-ink);
 }
+
+.viewer-analysis-card {
+  position: absolute;
+  top: 5rem;
+  right: var(--space-md);
+  background-color: var(--color-paper);
+  border: 2px solid var(--color-rule);
+  padding: var(--space-md);
+  color: var(--color-ink);
+  z-index: 10;
+  opacity: 1 !important;
+  min-width: 300px;
+  max-width: 320px;
+  box-shadow: var(--shadow-elevated);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  max-height: calc(100vh - 6rem);
+  overflow-y: auto;
+}
+
+.viewer-analysis-card h3 {
+  font-family: var(--font-display);
+  color: var(--color-ink);
+  font-size: 0.85rem;
+  margin: 0 0 var(--space-xs) 0;
+  border-bottom: 2px solid var(--color-rule);
+  padding-bottom: 4px;
+}
+
+.analysis-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  opacity: 1 !important;
+}
+
+.analysis-btn {
+  background-color: var(--color-paper-3);
+  border: 1px solid var(--color-rule);
+  color: var(--color-ink);
+  padding: 0.35rem 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s;
+  display: flex;
+  justify-content: space-between;
+  opacity: 1 !important;
+}
+
+.analysis-btn:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.analysis-input {
+  background-color: var(--color-paper-2);
+  border: 1px solid var(--color-rule);
+  color: var(--color-ink);
+  padding: 0.2rem 0.4rem;
+  font-family: var(--font-mono);
+  width: 60px;
+  opacity: 1 !important;
+}
+
+.analysis-result {
+  background-color: var(--color-paper-2);
+  border: 1px solid var(--color-rule);
+  padding: 0.4rem;
+  margin-top: 2px;
+  color: var(--color-accent-green);
+  word-break: break-all;
+  opacity: 1 !important;
+}
+
+.analysis-error {
+  color: var(--color-accent);
+}
+
+@media (max-width: 768px) {
+  .viewer-analysis-card {
+    top: 11.5rem; /* Safely below the Telemetry HUD */
+    bottom: auto;
+    right: var(--space-md);
+    left: auto;
+    max-width: 250px;
+    max-height: 35vh; /* Scrollable inside its own gap */
+  }
+}

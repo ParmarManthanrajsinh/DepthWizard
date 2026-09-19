@@ -1,0 +1,38 @@
+{
+  "model": "depth-anything/Depth-Anything-V2-Small-hf",
+  "device": "cuda",
+  "epochs_run": 3,
+  "best_val_mae_m": 2.2291429594129535,
+  "history": [
+    {
+      "epoch": 1,
+      "train_loss": 1.6873,
+      "train_ssi": 1.5679,
+      "train_grad": 0.2388,
+      "val_mae_m": 2.5386,
+      "val_rmse_m": 3.419,
+      "val_corr": 0.4836,
+      "elapsed_s": 46.49
+    },
+    {
+      "epoch": 2,
+      "train_loss": 1.5332,
+      "train_ssi": 1.4134,
+      "train_grad": 0.2395,
+      "val_mae_m": 2.4321,
+      "val_rmse_m": 3.3126,
+      "val_corr": 0.5299,
+      "elapsed_s": 38.42
+    },
+    {
+      "epoch": 3,
+      "train_loss": 1.4342,
+      "train_ssi": 1.3154,
+      "train_grad": 0.2376,
+      "val_mae_m": 2.2291,
+      "val_rmse_m": 3.1507,
+      "val_corr": 0.5911,
+      "elapsed_s": 40.05
+    }
+  ]
+}

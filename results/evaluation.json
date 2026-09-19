@@ -9,43 +9,43 @@
         "description": "Honest benchmark: affine scale and offset frozen from validation split (no test GT peeking)",
         "scale": 9.810477,
         "offset_meters": 33.73373,
-        "mae_meters": 4.0702,
-        "rmse_meters": 4.6302,
-        "pearson_correlation": 0.6469,
+        "mae_meters": 4.0652,
+        "rmse_meters": 4.6258,
+        "pearson_correlation": 0.645,
         "absrel": 0.1042,
-        "delta1": 0.9298,
+        "delta1": 0.9302,
         "delta2": 0.9994,
         "delta3": 1.0
     },
     "oracle_upper_bound_protocol": {
         "description": "Oracle upper bound: scale and offset fit per-image against test GT (theoretical ceiling)",
-        "mae_meters": 1.5756,
-        "rmse_meters": 2.2035,
-        "pearson_correlation": 0.6469,
-        "absrel": 0.0409,
-        "delta1": 0.982,
-        "delta2": 0.9997,
+        "mae_meters": 1.5342,
+        "rmse_meters": 2.1594,
+        "pearson_correlation": 0.677,
+        "absrel": 0.0398,
+        "delta1": 0.9864,
+        "delta2": 0.9998,
         "delta3": 1.0
     },
     "biome_metrics": {
         "urban": {
             "crops_count": 150,
-            "mae_meters": 4.0702,
-            "rmse_meters": 4.6302,
-            "pearson_correlation": 0.6469,
-            "oracle_mae_meters": 1.5756
+            "mae_meters": 4.0652,
+            "rmse_meters": 4.6258,
+            "pearson_correlation": 0.645,
+            "oracle_mae_meters": 1.5342
         }
     },
     "metrics": {
-        "mae_meters": 4.0702,
-        "rmse_meters": 4.6302,
-        "pearson_correlation": 0.6469,
+        "mae_meters": 4.0652,
+        "rmse_meters": 4.6258,
+        "pearson_correlation": 0.645,
         "absrel": 0.1042,
-        "delta1": 0.9298,
+        "delta1": 0.9302,
         "delta2": 0.9994,
         "delta3": 1.0,
-        "oracle_mae_meters": 1.5756,
-        "oracle_rmse_meters": 2.2035,
-        "oracle_pearson_correlation": 0.6469
+        "oracle_mae_meters": 1.5342,
+        "oracle_rmse_meters": 2.1594,
+        "oracle_pearson_correlation": 0.677
     }
 }

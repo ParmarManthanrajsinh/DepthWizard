@@ -1,0 +1,19 @@
+{
+  "protocol": "Strict Zero-Shot (No Affine Fit)",
+  "samples": 150,
+  "valid_pixels": 39321600,
+  "inference_time_s": 9.9,
+  "prediction_range": [
+    0.0353,
+    6.5784
+  ],
+  "target_range": [
+    17.966,
+    65.269
+  ],
+  "prediction_mean": 1.7959,
+  "target_mean": 38.0312,
+  "raw_mae_m": 36.2353,
+  "raw_rmse_m": 36.6769,
+  "pearson_correlation": 0.5782
+}
